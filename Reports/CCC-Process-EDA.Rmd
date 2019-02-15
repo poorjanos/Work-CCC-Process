@@ -1,0 +1,147 @@
+---
+title: "CCC-Process Exploratory Data Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Housekeeping
+
+### R Session Info
+```{r, echo = FALSE}
+sessionInfo()
+```
+
+
+### Load libs
+```{r, message = FALSE}
+library(here)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(lubridate)
+library(scales)
+```
+
+### Load Data
+```{r, cache=FALSE}
+t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_raw.csv"), sep = ";", stringsAsFactors = FALSE)
+
+# Transform Data Types Inplace
+t_ccc_pa <- t_ccc_pa %>% 
+              mutate(EVENT_END = ymd_hms(EVENT_END),
+                     CASE_TYPE_PROB_CAT = factor(CASE_TYPE_PROB_CAT))
+```
+
+### Variable Descriptions
+CASE_ID: unique case identifier  
+EVENT_END: end timestamp of event  
+USER_ID: identifier of user executing event  
+EVENT_CHANNEL: type of event media  
+ACTIVITY_HU: event name in hu  
+ACTIVITY_EN: event name in en  
+CASE_TYPE_HU: contact reason name in hu  
+CASE_TYPE_EN: contact reason name in en  
+CASE_TYPE_PROB: probability of case type classification  
+CASE_TYPE_PROB_CAT: probability of case type classification aggregated to 6 levels  
+
+### Check Data Types
+```{r}
+purrr::map(t_ccc_pa, typeof)
+```
+
+# Cases Overview
+
+### Total Number of Cases
+```{r}
+t_ccc_pa$CASE_ID %>% unique() %>% length()
+```
+
+### Number of Cases by Month
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
+  group_by(CASE_ID) %>%
+  summarize(CASE_START_MONTH = min(EVENT_MONTH)) %>%
+  ungroup() %>%
+  group_by(CASE_START_MONTH) %>%
+  summarize(COUNT = n()) %>%
+  # Plot
+  ggplot(aes(x = substr(as.character(CASE_START_MONTH), 1, 7), y = COUNT, group = 1)) +
+  geom_line(size = 0.8) +
+  theme_minimal() +
+  scale_y_continuous(label = unit_format(unit = "K")) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(
+    x = "Month",
+    y = "# of Cases",
+    title = "Number of Cases per Start Month"
+  )
+```
+
+### Number of Cases by Case Type
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  group_by(CASE_TYPE_EN) %>%
+  summarize(COUNT = n_distinct(CASE_ID)) %>%
+  ungroup() %>%
+  # Plot
+  ggplot(
+    aes(x = factor(CASE_TYPE_EN, levels = unique(CASE_TYPE_EN[order(COUNT)])), y = COUNT)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  scale_y_continuous(label = unit_format(unit = "K")) +
+  coord_flip() +
+  labs(
+    x = "Case Type",
+    y = "# of Cases",
+    title = "Number of Cases per Case Type"
+  )
+```
+
+# Analyse Case Type Classification Probabilities
+
+Case types (contact reasons) were determinded by probabilistic methods as the workflow system does not record case types. In fact, case ids were also determined probabilistically as the workflow system does not generate data of this sort. Therefore it is good to check how sure one can be about a case belonging to a specific type (contact reason).
+
+
+### Distribution of Case Type Probabilites
+```{r}
+t_ccc_pa %>% 
+  # Transform data
+  distinct(CASE_ID, CASE_TYPE_PROB) %>% 
+  # Plot
+  ggplot(aes(CASE_TYPE_PROB)) +
+  geom_histogram(bins = 10) +
+  theme_minimal() +
+  scale_y_continuous(label = unit_format(unit = "K")) +
+  labs(
+    x = "Case Type Probability",
+    y = "# of Cases",
+    title = "Distribution of Case Type Probability"
+  )
+```
+
+### Distribution of Case Type Probabilites by Case Types
+```{r}
+t_ccc_pa %>% 
+  # Transform data
+  distinct(CASE_ID, CASE_TYPE_EN, CASE_TYPE_PROB) %>% 
+  # Plot
+  ggplot(
+    aes(x = factor(CASE_TYPE_EN, 
+                   levels = unique(CASE_TYPE_EN[order(CASE_TYPE_EN, decreasing = TRUE)])),
+        y = CASE_TYPE_PROB)) +
+  geom_boxplot(outlier.shape = NA) +
+  theme_minimal() +
+  coord_flip() +
+  #scale_y_continuous(label = unit_format(unit = "K")) +
+  labs(
+    y = "Case Type Probability",
+    x = "# of Cases",
+    title = "Distribution of Case Type Probability"
+  )
+```
