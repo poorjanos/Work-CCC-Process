@@ -1,6 +1,8 @@
 ---
 title: "CCC-Process Exploratory Data Analysis"
 output: html_document
+  toc: TRUE
+
 ---
 
 ```{r setup, include=FALSE}
@@ -8,6 +10,11 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Housekeeping
+
+### R Source Code Available Here:
+
+https://github.com/poorjanos/Work-CCC-Process
+
 
 ### R Session Info
 ```{r, echo = FALSE}
@@ -23,6 +30,10 @@ library(ggplot2)
 library(purrr)
 library(lubridate)
 library(scales)
+library(tidyr)
+library(bupaR)
+library(processmapR)
+library(DiagrammeR)
 ```
 
 ### Load Data
@@ -105,7 +116,7 @@ t_ccc_pa %>%
 
 # Analyse Case Type Classification Probabilities
 
-Case types (contact reasons) were determinded by probabilistic methods as the workflow system does not record case types. In fact, case ids were also determined probabilistically as the workflow system does not generate data of this sort. Therefore it is good to check how sure one can be about a case belonging to a specific type (contact reason).
+Case types (contact reasons) were determinded by probabilistic methods. Therefore it is good to check how certain one can be about a case belonging to a specific type.
 
 
 ### Distribution of Case Type Probabilites
@@ -126,14 +137,16 @@ t_ccc_pa %>%
 ```
 
 ### Distribution of Case Type Probabilites by Case Types
+
+The same certainty-check by individual case types.
+
 ```{r}
 t_ccc_pa %>% 
   # Transform data
   distinct(CASE_ID, CASE_TYPE_EN, CASE_TYPE_PROB) %>% 
   # Plot
   ggplot(
-    aes(x = factor(CASE_TYPE_EN, 
-                   levels = unique(CASE_TYPE_EN[order(CASE_TYPE_EN, decreasing = TRUE)])),
+    aes(x = reorder(CASE_TYPE_EN, CASE_ID, FUN = length),
         y = CASE_TYPE_PROB)) +
   geom_boxplot(outlier.shape = NA) +
   theme_minimal() +
@@ -141,7 +154,189 @@ t_ccc_pa %>%
   #scale_y_continuous(label = unit_format(unit = "K")) +
   labs(
     y = "Case Type Probability",
-    x = "# of Cases",
-    title = "Distribution of Case Type Probability"
+    x = "Case Type (Ordered by Case Frequency)",
+    title = "Distribution of Case Type Probability per Case Type"
   )
 ```
+
+
+# Analyze Process Structure by Case Type
+
+Each case type is a different contact reason. Thus this part of the analysis i run for case types separately.
+
+### Add cols to event log
+```{r, cache = FALSE}
+# Add cols to event log required by BupaR
+t_ccc_pa_eventlog <- t_ccc_pa %>%
+  arrange(CASE_ID, EVENT_END) %>%
+  mutate(
+    ACTIVITY_INST_ID = as.numeric(row.names(.)),
+    LIFECYCLE_ID = "END"
+  )
+
+
+# Define analytics functions
+# Trace number
+get_trace_num <- function(df){
+  number_of_traces(
+    eventlog(
+           df,
+           case_id = "CASE_ID",
+           activity_id = "ACTIVITY_EN",
+           activity_instance_id = "ACTIVITY_INST_ID",
+           lifecycle_id = "LIFECYCLE_ID",
+           timestamp = "EVENT_END",
+           resource_id = "USER_ID"
+           ))
+}
+
+# Trace coverage
+get_trace_cov <- function(df){
+  trace_coverage(
+    eventlog(
+      df,
+      case_id = "CASE_ID",
+           activity_id = "ACTIVITY_EN",
+           activity_instance_id = "ACTIVITY_INST_ID",
+           lifecycle_id = "LIFECYCLE_ID",
+           timestamp = "EVENT_END",
+           resource_id = "USER_ID"
+    ), level = "trace")
+}
+
+# Trace lenght aggregates
+get_trace_len <- function(df) {
+  tidyr::spread(
+    data = data.frame(
+      metric = c("mean", "median", "min", "max", "st_dev", "q1", "q3", "iqr"),
+      values = trace_length(
+        eventlog(
+          df,
+          case_id = "CASE_ID",
+           activity_id = "ACTIVITY_EN",
+           activity_instance_id = "ACTIVITY_INST_ID",
+           lifecycle_id = "LIFECYCLE_ID",
+           timestamp = "EVENT_END",
+           resource_id = "USER_ID"
+        ),
+        level = "log", units = "day"
+      )[c("mean", "median", "min", "max", "st_dev", "q1", "q3", "iqr")], row.names = NULL
+    ),
+    key = metric, value = values
+  )
+}
+
+# Trace lenght by case
+get_trace_length_by_case <- function(df) {
+  df %>%
+    group_by(CASE_ID) %>%
+    summarize(trace_len = n()) %>%
+    ungroup()
+}
+
+# Throughput time
+get_through_time <- function(df) {
+  tidyr::spread(
+    data = data.frame(
+      metric = c("mean", "median", "min", "max", "st_dev", "q1", "q3"),
+      values = throughput_time(
+        eventlog(
+          df,
+          case_id = "CASE_ID",
+           activity_id = "ACTIVITY_EN",
+           activity_instance_id = "ACTIVITY_INST_ID",
+           lifecycle_id = "LIFECYCLE_ID",
+           timestamp = "EVENT_END",
+           resource_id = "USER_ID"
+        ),
+        level = "log", units = "day"
+      )[c("mean", "median", "min", "max", "st_dev", "q1", "q3")], row.names = NULL
+    ),
+    key = metric, value = values
+  )
+}
+
+# Genarate nested df
+# Gen nested tables with aggregated stats in nested tables
+by_case_type <- t_ccc_pa_eventlog %>%
+  group_by(CASE_TYPE_EN) %>%
+  nest() %>%
+  mutate(
+    CASE_NUMBER = map(data, ~length(unique(.$CASE_ID))),
+    EVENT_NUMBER = map(data, ~length(unique(.$ACTIVITY_EN))),
+    TRACE_NUMBER = map(data, get_trace_num),
+    TRACE_COV = map(data, get_trace_cov),
+    TRACE_LENGTH_AGGREGATE = map(data, get_trace_len),
+    TRACE_LENGTH_BY_CASE = map(data, get_trace_length_by_case),
+    THROUGH_TIME = map(data, get_through_time)
+  )
+```
+
+### Trace Number
+
+High variability of traces detected for each contact reason. 
+
+```{r}
+by_case_type %>% select(CASE_TYPE_EN, CASE_NUMBER, TRACE_NUMBER) %>%
+  unnest() %>% 
+  ggplot(aes(
+    x = factor(CASE_TYPE_EN, levels = unique(CASE_TYPE_EN[order(CASE_NUMBER)])), 
+    y = absolute)) +
+    geom_bar(stat = "identity") +
+    theme_minimal() +
+    scale_y_continuous(label = unit_format(unit = "K")) +
+    coord_flip() +
+    labs(
+      x = "Case Type (Ordered by Case Frequency)",
+      y = "# of Traces",
+      title = "Number of Unique Traces per Case Type "
+    )
+```
+
+### Trace Coverage
+
+Despite high variability of traces it is only a small subset of traces that cover the majority of cases (strong Pareto effect). Traces are thus noisy, but there are a few strong patterns underneath.
+
+```{r}
+by_case_type %>% select(CASE_TYPE_EN, TRACE_COV) %>% 
+  unnest() %>% 
+  group_by(CASE_TYPE_EN) %>%
+  mutate(RNUM = row_number()) %>%
+  ungroup() %>% 
+  ggplot(aes(x = RNUM, y = cum_sum)) +
+      geom_line() +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 90)) +
+      coord_cartesian(xlim = c(0, 500)) +
+      facet_wrap(~CASE_TYPE_EN, ncol = 4) +
+      labs(
+          x = "Unique traces",
+          y = "Coverage (Cumulative Perentage)",
+          title = "Trace Coverage"
+        )
+```
+
+
+### Trace Length
+```{r}
+by_case_type %>% select(CASE_TYPE_EN, TRACE_LENGHT_BY_CASE) %>%
+  unnest() %>%
+  ggplot(
+    aes(x = reorder(CASE_TYPE_EN, CASE_ID, FUN = length),
+        y = trace_len)) +
+  geom_boxplot(outlier.shape = NA) +
+  theme_minimal() +
+  coord_flip(ylim = c(0,10)) +
+  scale_y_continuous(breaks=seq(0,10,1)) +
+  labs(
+    y = "Number of Activities",
+    x = "Case Type (Ordered by Case Frequency)",
+    title = "Distribution of Trace Length per Case Type"
+  )
+```
+
+### Throughput Time
+```{r}
+by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME) %>% unnest()
+```
+

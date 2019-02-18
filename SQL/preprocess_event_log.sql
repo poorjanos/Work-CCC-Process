@@ -3,6 +3,7 @@
 
 /* Gen base table and rename cols */
 DROP TABLE T_CCC_PA_OUTPUT3;
+COMMIT;
 
 CREATE TABLE T_CCC_PA_OUTPUT3
 AS
@@ -66,6 +67,7 @@ COMMIT;
 
 /* Define then drop case types with freq under 1.00% */
 DROP TABLE case_type_to_keep;
+COMMIT;
 
 CREATE TABLE case_type_to_keep                                 --compute freqs
 AS
@@ -83,6 +85,9 @@ AS
                       (SELECT   COUNT (DISTINCT case_id) AS total
                          FROM   T_CCC_PA_OUTPUT3) b)
     WHERE   case_type_rate > 0.01 AND case_type_hu IS NOT NULL;
+COMMIT;
+
+
 
 DELETE FROM   t_ccc_pa_output3                    --delete low freq case types
       WHERE   case_type_hu NOT IN
