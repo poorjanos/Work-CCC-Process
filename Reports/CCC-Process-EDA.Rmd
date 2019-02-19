@@ -1,12 +1,12 @@
 ---
 title: "CCC-Process Exploratory Data Analysis"
-output: html_document
-  toc: TRUE
-
+output:
+  html_document:
+    toc: TRUE
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
 # Housekeeping
@@ -17,13 +17,13 @@ https://github.com/poorjanos/Work-CCC-Process
 
 
 ### R Session Info
-```{r, echo = FALSE}
+```{r}
 sessionInfo()
 ```
 
 
 ### Load libs
-```{r, message = FALSE}
+```{r, message = FALSE, echo = TRUE}
 library(here)
 library(dplyr)
 library(ggplot2)
@@ -37,7 +37,7 @@ library(DiagrammeR)
 ```
 
 ### Load Data
-```{r, cache=FALSE}
+```{r, cache = TRUE}
 t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_raw.csv"), sep = ";", stringsAsFactors = FALSE)
 
 # Transform Data Types Inplace
@@ -84,7 +84,7 @@ t_ccc_pa %>%
   ggplot(aes(x = substr(as.character(CASE_START_MONTH), 1, 7), y = COUNT, group = 1)) +
   geom_line(size = 0.8) +
   theme_minimal() +
-  scale_y_continuous(label = unit_format(unit = "K")) +
+  scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
   theme(axis.text.x = element_text(angle = 90)) +
   labs(
     x = "Month",
@@ -114,7 +114,7 @@ t_ccc_pa %>%
   )
 ```
 
-# Analyse Case Type Classification Probabilities
+# Case Type Classification Probabilities
 
 Case types (contact reasons) were determinded by probabilistic methods. Therefore it is good to check how certain one can be about a case belonging to a specific type.
 
@@ -139,7 +139,6 @@ t_ccc_pa %>%
 ### Distribution of Case Type Probabilites by Case Types
 
 The same certainty-check by individual case types.
-
 ```{r}
 t_ccc_pa %>% 
   # Transform data
@@ -154,18 +153,17 @@ t_ccc_pa %>%
   #scale_y_continuous(label = unit_format(unit = "K")) +
   labs(
     y = "Case Type Probability",
-    x = "Case Type (Ordered by Case Frequency)",
+    x = "Case Type (Ordered by Case Type Frequency)",
     title = "Distribution of Case Type Probability per Case Type"
   )
 ```
 
 
-# Analyze Process Structure by Case Type
+# Process Structure by Case Type
 
-Each case type is a different contact reason. Thus this part of the analysis i run for case types separately.
+Each case type is a different contact reason. Thus this part of the analysis is run for case types separately.
 
-### Add cols to event log
-```{r, cache = FALSE}
+```{r, cache = TRUE}
 # Add cols to event log required by BupaR
 t_ccc_pa_eventlog <- t_ccc_pa %>%
   arrange(CASE_ID, EVENT_END) %>%
@@ -204,8 +202,9 @@ get_trace_cov <- function(df){
     ), level = "trace")
 }
 
+
 # Trace lenght aggregates
-get_trace_len <- function(df) {
+get_trace_length <- function(df) {
   tidyr::spread(
     data = data.frame(
       metric = c("mean", "median", "min", "max", "st_dev", "q1", "q3", "iqr"),
@@ -226,13 +225,23 @@ get_trace_len <- function(df) {
   )
 }
 
+
 # Trace lenght by case
 get_trace_length_by_case <- function(df) {
-  df %>%
-    group_by(CASE_ID) %>%
-    summarize(trace_len = n()) %>%
-    ungroup()
+  trace_length(
+    eventlog(
+      df,
+      case_id = "CASE_ID",
+      activity_id = "ACTIVITY_EN",
+      activity_instance_id = "ACTIVITY_INST_ID",
+      lifecycle_id = "LIFECYCLE_ID",
+      timestamp = "EVENT_END",
+      resource_id = "USER_ID"
+    ),
+    level = "case", units = "day"
+  )
 }
+
 
 # Throughput time
 get_through_time <- function(df) {
@@ -256,6 +265,24 @@ get_through_time <- function(df) {
   )
 }
 
+
+# Throughput time by case
+get_through_time_by_case <- function(df) {
+    throughput_time(
+      eventlog(
+        df,
+        case_id = "CASE_ID",
+        activity_id = "ACTIVITY_EN",
+        activity_instance_id = "ACTIVITY_INST_ID",
+        lifecycle_id = "LIFECYCLE_ID",
+        timestamp = "EVENT_END",
+        resource_id = "USER_ID"
+      ),
+      level = "case", units = "day"
+    )
+}
+
+
 # Genarate nested df
 # Gen nested tables with aggregated stats in nested tables
 by_case_type <- t_ccc_pa_eventlog %>%
@@ -266,9 +293,10 @@ by_case_type <- t_ccc_pa_eventlog %>%
     EVENT_NUMBER = map(data, ~length(unique(.$ACTIVITY_EN))),
     TRACE_NUMBER = map(data, get_trace_num),
     TRACE_COV = map(data, get_trace_cov),
-    TRACE_LENGTH_AGGREGATE = map(data, get_trace_len),
+    TRACE_LENGTH_AGGREGATE = map(data, get_trace_length),
     TRACE_LENGTH_BY_CASE = map(data, get_trace_length_by_case),
-    THROUGH_TIME = map(data, get_through_time)
+    THROUGH_TIME_AGGREGATE = map(data, get_through_time),
+    THROUGH_TIME_BY_CASE = map(data, get_through_time_by_case)
   )
 ```
 
@@ -287,8 +315,8 @@ by_case_type %>% select(CASE_TYPE_EN, CASE_NUMBER, TRACE_NUMBER) %>%
     scale_y_continuous(label = unit_format(unit = "K")) +
     coord_flip() +
     labs(
-      x = "Case Type (Ordered by Case Frequency)",
-      y = "# of Traces",
+      x = "Case Type (Ordered by Case Type Frequency)",
+      y = "# of Unique Traces",
       title = "Number of Unique Traces per Case Type "
     )
 ```
@@ -312,31 +340,44 @@ by_case_type %>% select(CASE_TYPE_EN, TRACE_COV) %>%
       labs(
           x = "Unique traces",
           y = "Coverage (Cumulative Perentage)",
-          title = "Trace Coverage"
+          title = "Trace Coverage Per Case Type"
         )
 ```
 
 
 ### Trace Length
 ```{r}
-by_case_type %>% select(CASE_TYPE_EN, TRACE_LENGHT_BY_CASE) %>%
+by_case_type %>% select(CASE_TYPE_EN, TRACE_LENGTH_BY_CASE) %>%
   unnest() %>%
   ggplot(
     aes(x = reorder(CASE_TYPE_EN, CASE_ID, FUN = length),
-        y = trace_len)) +
+        y = trace_length)) +
   geom_boxplot(outlier.shape = NA) +
   theme_minimal() +
   coord_flip(ylim = c(0,10)) +
   scale_y_continuous(breaks=seq(0,10,1)) +
   labs(
     y = "Number of Activities",
-    x = "Case Type (Ordered by Case Frequency)",
+    x = "Case Type (Ordered by Case Type Frequency)",
     title = "Distribution of Trace Length per Case Type"
   )
 ```
 
 ### Throughput Time
 ```{r}
-by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME) %>% unnest()
+by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
+  unnest() %>%
+  ggplot(
+    aes(x = reorder(CASE_TYPE_EN, CASE_ID, FUN = length),
+        y = throughput_time)) +
+  geom_boxplot(outlier.shape = NA) +
+  theme_minimal() +
+  coord_flip(ylim = c(0,50)) +
+  scale_y_continuous(breaks=seq(0,50,5)) +
+  labs(
+    y = "Throughput Time (day)",
+    x = "Case Type (Ordered by Case Type Frequency)",
+    title = "Distribution of Throughput Time per Case Type"
+  )
 ```
 
