@@ -38,7 +38,7 @@ library(DiagrammeR)
 
 ### Load Data
 ```{r, cache = TRUE}
-t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_raw.csv"), sep = ";", stringsAsFactors = FALSE)
+t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_raw_2.csv"), sep = ";", stringsAsFactors = FALSE)
 
 # Transform Data Types Inplace
 t_ccc_pa <- t_ccc_pa %>% 

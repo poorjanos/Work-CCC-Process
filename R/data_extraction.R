@@ -36,7 +36,7 @@ jdbcConnection <-
   )
 
 # Fetch data
-query_ccc_process <- "select * from T_CCC_PA_OUTPUT3"
+query_ccc_process <- "select distinct * from T_CCC_PA_OUTPUT4"
 t_ccc_pa_raw <- dbGetQuery(jdbcConnection, query_ccc_process)
 
 # Close db connection: kontakt
@@ -44,9 +44,9 @@ dbDisconnect(jdbcConnection)
 
 
 # Write to csv
-write.table(t_ccc_pa_raw, here::here("Data" ,"t_ccc_pa_raw.csv"), row.names = FALSE, sep = ";", quote = FALSE)
+write.table(t_ccc_pa_raw, here::here("Data" ,"t_ccc_pa_raw_2.csv"), row.names = FALSE, sep = ";", quote = FALSE)
 
-t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_raw.csv"), sep = ";", stringsAsFactors = FALSE)
+t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_raw_2.csv"), sep = ";", stringsAsFactors = FALSE)
 
 
    
