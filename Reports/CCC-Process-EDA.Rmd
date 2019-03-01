@@ -300,7 +300,7 @@ by_case_type <- t_ccc_pa_eventlog %>%
   )
 ```
 
-### Trace Number
+### Trace Number per Case Type
 
 High variability of traces detected for each contact reason. 
 
@@ -321,7 +321,7 @@ by_case_type %>% select(CASE_TYPE_EN, CASE_NUMBER, TRACE_NUMBER) %>%
     )
 ```
 
-### Trace Coverage
+### Trace Coverage per Case Type
 
 Despite high variability of traces it is only a small subset of traces that cover the majority of cases (strong Pareto effect). Traces are thus noisy, but there are a few strong patterns underneath.
 
@@ -345,7 +345,8 @@ by_case_type %>% select(CASE_TYPE_EN, TRACE_COV) %>%
 ```
 
 
-### Trace Length
+### Trace Length per Case Type
+
 ```{r}
 by_case_type %>% select(CASE_TYPE_EN, TRACE_LENGTH_BY_CASE) %>%
   unnest() %>%
@@ -363,7 +364,24 @@ by_case_type %>% select(CASE_TYPE_EN, TRACE_LENGTH_BY_CASE) %>%
   )
 ```
 
-### Throughput Time
+### Throughput Time Distribution
+```{r}
+by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
+  unnest() %>%
+  ggplot(
+    aes(throughput_time)) +
+  geom_histogram(bins = 500) +
+  coord_cartesian(xlim = c(0,50)) +
+  theme_minimal() +
+  scale_y_continuous(label = unit_format(unit = "K")) +
+  labs(
+    y = "# of Cases",
+    x = "Throughput Time (days)",
+    title = "Distribution of Throughput Time"
+  )
+```
+
+### Throughput Time per Case Type
 ```{r}
 by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
   unnest() %>%
@@ -381,3 +399,52 @@ by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
   )
 ```
 
+### Throughput Time By Month
+```{r}
+case_month <- t_ccc_pa_eventlog %>% 
+  group_by(CASE_ID) %>%
+  summarize(START_MONTH = floor_date(min(EVENT_END), unit="months")) %>% 
+  ungroup()
+
+by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
+  unnest() %>%
+  left_join(case_month, by = "CASE_ID") %>% 
+  group_by(START_MONTH) %>% 
+  summarize(THROUGHPUT_TIME_MEDIAN = median(throughput_time),
+             THROUGHPUT_TIME_AVG = mean(throughput_time)) %>% 
+  ungroup() %>%
+  ggplot(
+    aes(x = START_MONTH,
+        y = THROUGHPUT_TIME_MEDIAN)) +
+  geom_line() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  labs(
+    y = "Throughput Time (day)",
+    x = "Month",
+    title = "Median Distribution of Throughput Time by Month"
+  )
+```
+
+### Throughput Time per Case Type By Month
+```{r}
+by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
+  unnest() %>%
+  left_join(case_month, by = "CASE_ID") %>% 
+  group_by(START_MONTH,  CASE_TYPE_EN) %>% 
+  summarize(THROUGHPUT_TIME_MEDIAN = median(throughput_time),
+             THROUGHPUT_TIME_AVG = mean(throughput_time)) %>% 
+  ungroup() %>% 
+  ggplot(
+    aes(x = START_MONTH,
+        y = THROUGHPUT_TIME_MEDIAN)) +
+  geom_line() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_wrap(~CASE_TYPE_EN, ncol = 4, scales = "free") +
+  labs(
+    y = "Throughput Time (day)",
+    x = "Month",
+    title = "Median Distribution of Throughput Time per Case Type by Month"
+  )
+```
