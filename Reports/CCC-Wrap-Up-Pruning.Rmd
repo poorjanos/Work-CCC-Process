@@ -1,0 +1,174 @@
+---
+title: "CCC Wrap Ups - Prune Decision Trees"
+author: "János Poór"
+date: '2019 április 1 '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, message = FALSE, echo = TRUE, include=FALSE}
+library(config)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(scales)
+library(tidyr)
+```
+
+```{r, include=FALSE}
+# Data Extraction #######################################################################
+
+# Set JAVA_HOME, set max. memory, and load rJava library
+Sys.setenv(JAVA_HOME = "C:\\Program Files\\Java\\jre1.8.0_171")
+options(java.parameters = "-Xmx2g")
+library(rJava)
+
+# Output Java version
+.jinit()
+print(.jcall("java/lang/System", "S", "getProperty", "java.version"))
+
+# Load RJDBC library
+library(RJDBC)
+
+# Get credentials
+datamnr <-
+  config::get("datamnr", file = "C:\\Users\\PoorJ\\Projects\\config.yml")
+
+# Create connection driver
+jdbcDriver <-
+  JDBC(driverClass = "oracle.jdbc.OracleDriver", classPath = "C:\\Users\\PoorJ\\Desktop\\ojdbc7.jar")
+
+# Open connection: kontakt
+jdbcConnection <-
+  dbConnect(
+    jdbcDriver,
+    url = datamnr$server,
+    user = datamnr$uid,
+    password = datamnr$pwd
+  )
+
+# Fetch data
+query_actions <- "
+SELECT   intezkedes,
+           cnt,
+           ratio,
+           SUM (ratio) OVER (ORDER BY ratio DESC) AS running_ratio
+    FROM   (SELECT   intezkedes, cnt, cnt / SUM (cnt) OVER () AS ratio
+              FROM   (  SELECT   DISTINCT intezkedes, SUM (cnt) AS cnt
+                          FROM   (  SELECT   mm,
+                                             alirattipus,
+                                             f_wf,
+                                             intezkedes,
+                                             SUM (cnt) AS cnt
+                                      FROM   mesterr.pa_intezkedes_crunch
+                                     WHERE       alirattipus IS NOT NULL
+                                             AND f_wf IS NOT NULL
+                                             AND intezkedes IS NOT NULL
+                                             AND f_wf = '_CCC_Intézkedés'
+                                  GROUP BY   mm,
+                                             alirattipus,
+                                             f_wf,
+                                             intezkedes
+                                  ORDER BY   2,
+                                             3,
+                                             4,
+                                             1)
+                      GROUP BY   intezkedes
+                      ORDER BY   2 DESC))
+ORDER BY   ratio DESC
+"
+t_actions <- dbGetQuery(jdbcConnection, query_actions)
+
+query_actions_per_doctype <- "
+  SELECT   alirattipus,
+           intezkedes,
+           cnt,
+           ratio,
+           SUM (ratio) OVER (PARTITION BY alirattipus ORDER BY ratio DESC)
+              AS running_ratio
+    FROM   (SELECT   alirattipus,
+                     intezkedes,
+                     cnt,
+                     cnt / SUM (cnt) OVER (PARTITION BY alirattipus) AS ratio
+              FROM   (  SELECT   DISTINCT
+                                 alirattipus, intezkedes, SUM (cnt) AS cnt
+                          FROM   (  SELECT   mm,
+                                             alirattipus,
+                                             f_wf,
+                                             intezkedes,
+                                             SUM (cnt) AS cnt
+                                      FROM   mesterr.pa_intezkedes_crunch
+                                     WHERE       alirattipus IS NOT NULL
+                                             AND f_wf IS NOT NULL
+                                             AND intezkedes IS NOT NULL
+                                             AND f_wf = '_CCC_Intézkedés'
+                                  GROUP BY   mm,
+                                             alirattipus,
+                                             f_wf,
+                                             intezkedes
+                                  ORDER BY   2,
+                                             3,
+                                             4,
+                                             1)
+                      GROUP BY   alirattipus, intezkedes
+                      ORDER BY   1, 3 DESC))
+ORDER BY   alirattipus, ratio DESC
+"
+t_actions_doctype <- dbGetQuery(jdbcConnection, query_actions_per_doctype)
+
+# Close db connection: kontakt
+dbDisconnect(jdbcConnection)
+```
+
+# Overview of Wrap Up Leaf Nodes
+
+## Wrap Up Leaf Nodes and Request Types
+
+Total count of wrap-up leaf nodes is 532. There is great variance of the leaf node count across the 212 requeset types.
+
+```{r}
+t_actions_doctype %>% group_by(ALIRATTIPUS) %>%
+  summarize(LEAF_NODE_CNT = n()) %>% 
+  arrange(desc(LEAF_NODE_CNT)) %>% 
+  ungroup() %>% 
+ggplot(aes(x = factor(ALIRATTIPUS, levels = unique(ALIRATTIPUS[order(LEAF_NODE_CNT)])),
+           y = LEAF_NODE_CNT)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.y = element_text(size = 2)) +
+  coord_flip() +
+  labs(
+    title = "Wrap Up Leaf Node Count by Request Type",    
+    y = "# of Wrap Up Leaf Nodes",
+    x = "Request type"
+      )
+```
+
+## Frequency Distribution of Wrap Up Leaf Nodes
+
+```{r}
+t_actions %>%
+  ggplot() +
+  geom_bar(aes(x = factor(INTEZKEDES, levels = unique(INTEZKEDES[order(RATIO, decreasing = TRUE)])), y = RATIO),
+           stat = "identity") +
+  geom_line(aes(x = factor(INTEZKEDES, levels = unique(INTEZKEDES[order(RATIO, decreasing = TRUE)])), y = RUNNING_RATIO, group = 1)) +
+  theme(axis.text.x = element_text(size = 2, angle = 90)) +
+  labs(
+    title = "Frequency Ratio of Wrap Up Leaf Nodes",    
+    y = "Ratio of Wrap Up Leaf Nodes",
+    x = "Request type"
+      )
+```
+
+```{r}
+t_actions %>% 
+  mutate(RATIO_CUT = cut(RATIO, seq(0,1, 0.01))) %>% 
+  group_by(RATIO_CUT) %>% 
+  summarize(CNT = n()) %>% 
+  ggplot(aes(x = RATIO_CUT, y = CNT)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label=CNT), vjust=-0.3, size=3.5)
+  
+```
