@@ -1,8 +1,8 @@
 ---
 title: "CCC Wrap Ups - Prune Decision Trees"
 author: "János Poór"
-date: '2019 április 1 '
-output: html_document
+date: 'April 2, 2019'
+output: rmdformats::readthedown
 ---
 
 ```{r setup, include=FALSE}
@@ -123,9 +123,7 @@ t_actions_doctype <- dbGetQuery(jdbcConnection, query_actions_per_doctype)
 dbDisconnect(jdbcConnection)
 ```
 
-# Overview of Wrap Up Leaf Nodes
-
-## Wrap Up Leaf Nodes and Request Types
+# Wrap Up Leaf Nodes and Request Types
 
 Total count of wrap-up leaf nodes is 532. There is great variance of the leaf node count across the 212 requeset types.
 
@@ -142,11 +140,13 @@ ggplot(aes(x = factor(ALIRATTIPUS, levels = unique(ALIRATTIPUS[order(LEAF_NODE_C
   labs(
     title = "Wrap Up Leaf Node Count by Request Type",    
     y = "# of Wrap Up Leaf Nodes",
-    x = "Request type"
+    x = "Request Type"
       )
 ```
 
-## Frequency Distribution of Wrap Up Leaf Nodes
+# Distribution of Wrap Up Leaf Nodes Occurance
+
+Over half of the available leaf nodes are almost never used. Only about 10% of all leaf nodes are in frequent usage.
 
 ```{r}
 t_actions %>%
@@ -156,11 +156,15 @@ t_actions %>%
   geom_line(aes(x = factor(INTEZKEDES, levels = unique(INTEZKEDES[order(RATIO, decreasing = TRUE)])), y = RUNNING_RATIO, group = 1)) +
   theme(axis.text.x = element_text(size = 2, angle = 90)) +
   labs(
-    title = "Frequency Ratio of Wrap Up Leaf Nodes",    
-    y = "Ratio of Wrap Up Leaf Nodes",
-    x = "Request type"
+    title = "Occurance Ratio of Wrap Up Leaf Nodes",    
+    y = "Occurance Ratio of Wrap Up Leaf Nodes",
+    x = "Request Type"
       )
 ```
+
+# Close-up on Ration of Occurance 
+
+511 of the 532 leaf nodes are used in less then 1% of cases.
 
 ```{r}
 t_actions %>% 
@@ -169,6 +173,38 @@ t_actions %>%
   summarize(CNT = n()) %>% 
   ggplot(aes(x = RATIO_CUT, y = CNT)) +
   geom_bar(stat = "identity") +
-  geom_text(aes(label=CNT), vjust=-0.3, size=3.5)
+  geom_text(aes(label=CNT), vjust=-0.3, size=3.5) +
+  labs(
+    title = "Probability Categories of Occurance",    
+    y = "# of Wrap Up Leaf Nodes",
+    x = "Occurance Ratio Bins"
+      )
   
+```
+
+# Toplist of Least Used Leaf Nodes
+
+Most useless nodes are the ones that are present in many trees (request types) and have a very low probability of orrurance in all of them: maximum probablity of occurance less than 1%. 
+
+```{r}
+knitr::kable(t_actions_doctype %>%
+  group_by(INTEZKEDES) %>%
+  summarize(
+    PRESENT_IN = n(),
+    MEDIAN_OCCURANCE_PROB = round(median(RATIO), 4),
+    MIN_OCCURANCE_PROB = round(min(RATIO), 4),
+    MAX_OCCURANCE_PROB = round(max(RATIO), 4),
+    SPAN_OCCURANCE_PROB = round(abs(MIN_OCCURANCE_PROB - MAX_OCCURANCE_PROB), 4)
+  ) %>%
+  ungroup() %>%
+  filter(MAX_OCCURANCE_PROB < 0.01) %>%
+  arrange(desc(PRESENT_IN), SPAN_OCCURANCE_PROB) %>%
+  transmute(
+    LEAF_NODE = INTEZKEDES,
+    PRESENT_IN = PRESENT_IN,
+    MEDIAN = scales::percent(MEDIAN_OCCURANCE_PROB),
+    MIN = scales::percent(MIN_OCCURANCE_PROB),
+    MAX = scales::percent(MAX_OCCURANCE_PROB),
+    SPAN = scales::percent(SPAN_OCCURANCE_PROB)
+  ), caption = "Toplist of Least Used Leaf Nodes Based on Occurance Probabilites")
 ```
