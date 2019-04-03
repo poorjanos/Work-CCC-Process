@@ -191,6 +191,7 @@ knitr::kable(t_actions_doctype %>%
   group_by(INTEZKEDES) %>%
   summarize(
     PRESENT_IN = n(),
+    OCCURANCE_COUNT = sum(CNT),
     MEDIAN_OCCURANCE_PROB = round(median(RATIO), 4),
     MIN_OCCURANCE_PROB = round(min(RATIO), 4),
     MAX_OCCURANCE_PROB = round(max(RATIO), 4),
@@ -202,9 +203,10 @@ knitr::kable(t_actions_doctype %>%
   transmute(
     LEAF_NODE = INTEZKEDES,
     PRESENT_IN = PRESENT_IN,
-    MEDIAN = scales::percent(MEDIAN_OCCURANCE_PROB),
-    MIN = scales::percent(MIN_OCCURANCE_PROB),
-    MAX = scales::percent(MAX_OCCURANCE_PROB),
-    SPAN = scales::percent(SPAN_OCCURANCE_PROB)
-  ), caption = "Toplist of Least Used Leaf Nodes Based on Occurance Probabilites")
+    COUNT = OCCURANCE_COUNT,
+    MEDIAN_OP = scales::percent(MEDIAN_OCCURANCE_PROB),
+    MIN_OP = scales::percent(MIN_OCCURANCE_PROB),
+    MAX_OP = scales::percent(MAX_OCCURANCE_PROB),
+    SPAN_OP = scales::percent(SPAN_OCCURANCE_PROB)
+  ), caption = "Toplist of Least Used Leaf Nodes Based on Occurance Probabilites (OP)")
 ```
