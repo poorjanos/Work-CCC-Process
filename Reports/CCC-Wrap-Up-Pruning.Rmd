@@ -1,7 +1,7 @@
 ---
 title: "CCC Wrap Ups - Prune Decision Trees"
 author: "János Poór"
-date: 'April 2, 2019'
+date: 'April 5, 2019'
 output: rmdformats::readthedown
 ---
 
@@ -123,7 +123,31 @@ t_actions_doctype <- dbGetQuery(jdbcConnection, query_actions_per_doctype)
 dbDisconnect(jdbcConnection)
 ```
 
-# Wrap Up Leaf Nodes and Request Types
+# Distribution of Wrap Up Leaf Nodes in 2017-2018
+
+Over half of the available leaf nodes are almost never used. Only about 10% of all leaf nodes are in frequent usage.
+
+```{r}
+t_actions %>%
+  ggplot() +
+  geom_bar(aes(x = factor(INTEZKEDES,
+                          levels = unique(INTEZKEDES[order(RATIO, decreasing = TRUE)])), y = RATIO),
+           stat = "identity") +
+  geom_line(aes(x = factor(INTEZKEDES,
+                           levels = unique(INTEZKEDES[order(RATIO, decreasing = TRUE)])), y = RUNNING_RATIO, group = 1)) +
+  theme(axis.text.x = element_text(size = 2, angle = 90)) +
+  annotate("text", x = 400, y = 0.5, label = "Line: cumulated ratio\nBars: ratio") +
+  labs(
+    title = "Occurance Ratio of Wrap Up Leaf Nodes",    
+    y = "Occurance Ratio of Leaf Nodes",
+    x = "Leaf Nodes"
+      )
+```
+
+***
+
+
+# Wrap Up Leaf Nodes across Request Types
 
 Total count of wrap-up leaf nodes is 532. There is great variance of the leaf node count across the 212 requeset types.
 
@@ -139,30 +163,15 @@ ggplot(aes(x = factor(ALIRATTIPUS, levels = unique(ALIRATTIPUS[order(LEAF_NODE_C
   coord_flip() +
   labs(
     title = "Wrap Up Leaf Node Count by Request Type",    
-    y = "# of Wrap Up Leaf Nodes",
+    y = "# of Distinct Leaf Nodes",
     x = "Request Type"
       )
 ```
 
-# Distribution of Wrap Up Leaf Nodes Occurance
+***
 
-Over half of the available leaf nodes are almost never used. Only about 10% of all leaf nodes are in frequent usage.
 
-```{r}
-t_actions %>%
-  ggplot() +
-  geom_bar(aes(x = factor(INTEZKEDES, levels = unique(INTEZKEDES[order(RATIO, decreasing = TRUE)])), y = RATIO),
-           stat = "identity") +
-  geom_line(aes(x = factor(INTEZKEDES, levels = unique(INTEZKEDES[order(RATIO, decreasing = TRUE)])), y = RUNNING_RATIO, group = 1)) +
-  theme(axis.text.x = element_text(size = 2, angle = 90)) +
-  labs(
-    title = "Occurance Ratio of Wrap Up Leaf Nodes",    
-    y = "Occurance Ratio of Wrap Up Leaf Nodes",
-    x = "Request Type"
-      )
-```
-
-# Close-up on Ration of Occurance 
+# Close-up on Occurance Distrubution 
 
 511 of the 532 leaf nodes are used in less then 1% of cases.
 
@@ -182,16 +191,19 @@ t_actions %>%
   
 ```
 
+***
+
+
 # Toplist of Least Used Leaf Nodes
 
-Most useless nodes are the ones that are present in many trees (request types) and have a very low probability of orrurance in all of them: maximum probablity of occurance less than 1%. 
+Least used trees defined as: maximum probablity of occurance less than 1% across all request types. 
 
 ```{r}
 knitr::kable(t_actions_doctype %>%
   group_by(INTEZKEDES) %>%
   summarize(
     PRESENT_IN = n(),
-    OCCURANCE_COUNT = sum(CNT),
+    OCCURANCE_TOTAL = sum(CNT),
     MEDIAN_OCCURANCE_PROB = round(median(RATIO), 4),
     MIN_OCCURANCE_PROB = round(min(RATIO), 4),
     MAX_OCCURANCE_PROB = round(max(RATIO), 4),
@@ -199,14 +211,12 @@ knitr::kable(t_actions_doctype %>%
   ) %>%
   ungroup() %>%
   filter(MAX_OCCURANCE_PROB < 0.01) %>%
-  arrange(desc(PRESENT_IN), SPAN_OCCURANCE_PROB) %>%
+  arrange(MAX_OCCURANCE_PROB) %>%
   transmute(
     LEAF_NODE = INTEZKEDES,
     PRESENT_IN = PRESENT_IN,
-    COUNT = OCCURANCE_COUNT,
+    TOTAL_OCCURANCE = OCCURANCE_TOTAL,
     MEDIAN_OP = scales::percent(MEDIAN_OCCURANCE_PROB),
-    MIN_OP = scales::percent(MIN_OCCURANCE_PROB),
-    MAX_OP = scales::percent(MAX_OCCURANCE_PROB),
-    SPAN_OP = scales::percent(SPAN_OCCURANCE_PROB)
+    MAX_OP = scales::percent(MAX_OCCURANCE_PROB)
   ), caption = "Toplist of Least Used Leaf Nodes Based on Occurance Probabilites (OP)")
 ```
