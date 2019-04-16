@@ -73,22 +73,23 @@ SELECT   attrib1, attrib1eng
                     GROUP BY   attrib1, attrib1eng
                     ORDER BY   3 DESC))
  WHERE   ratio > 0.01;
+COMMIT;
 
 
 UPDATE T_CCC_PA_OUTPUT_TORLES
 set attrib1 = 'Egyéb' where attrib1 not in (select attrib1 from t_ccc_info_reason_most_common_torles);
+COMMIT;
 
 UPDATE T_CCC_PA_OUTPUT_TORLES
 set attrib1eng = 'Other' where attrib1eng not in (select attrib1eng from t_ccc_info_reason_most_common_torles);
-
-
-UPDATE T_CCC_PA_OUTPUT_TORLES
-set activity_hu = activity_hu || ' ' || attrib1;
-
+COMMIT;
 
 UPDATE T_CCC_PA_OUTPUT_TORLES
-set activity_en = activity_en || ' ' || attrib1eng;
+set activity_hu = activity_hu || ' ' || attrib1 where activity_hu = 'Tajekoztatas';
+COMMIT;
 
+UPDATE T_CCC_PA_OUTPUT_TORLES
+set activity_en = activity_en || ' ' || attrib1eng where activity_en = 'Provide information';
 COMMIT;
 
 /*******************************************************************************/
@@ -163,22 +164,25 @@ SELECT   attrib1, attrib1eng
                     GROUP BY   attrib1, attrib1eng
                     ORDER BY   3 DESC))
  WHERE   ratio > 0.01;
+COMMIT;
 
 
 UPDATE T_CCC_PA_OUTPUT_TAJ
 set attrib1 = 'Egyéb' where attrib1 not in (select attrib1 from t_ccc_info_reason_most_common_taj);
+COMMIT;
 
 UPDATE T_CCC_PA_OUTPUT_TAJ
 set attrib1eng = 'Other' where attrib1eng not in (select attrib1eng from t_ccc_info_reason_most_common_taj);
+COMMIT;
 
 
 UPDATE T_CCC_PA_OUTPUT_TAJ
-set activity_hu = activity_hu || ' ' || attrib1;
+set activity_hu = activity_hu || ' ' || attrib1 where activity_hu = 'Tajekoztatas';
+COMMIT;
 
 
 UPDATE T_CCC_PA_OUTPUT_TAJ
-set activity_en = activity_en || ' ' || attrib1eng;
-
+set activity_en = activity_en || ' ' || attrib1eng where activity_en = 'Provide information';
 COMMIT;
 
 
@@ -233,10 +237,26 @@ AS
             AND f_paid LIKE 'K%'
             AND hun1 IS NOT NULL
             AND TRIM (hun1) <> 'Visszalepes'
-            and attrib0 = 'Karbejelentes';
+            and attrib0 in ('Karbejelentes', 'GEPJARMUKAR', 'SZEMLES VAGYONKAR');
 
 COMMIT;
 
+
+UPDATE   T_CCC_PA_OUTPUT_KAR a
+   SET   product_line = 'HOUSE'
+ WHERE   a.product_line IS NULL AND REGEXP_LIKE (a.product_code, '^2.968.*')
+         OR REGEXP_LIKE (a.product_code, '^2.954.*');
+COMMIT;
+
+
+UPDATE   T_CCC_PA_OUTPUT_KAR a
+   SET   case_type_hu = 'Karbejelentes';
+COMMIT;
+
+
+UPDATE   T_CCC_PA_OUTPUT_KAR a
+   SET   case_type_en = 'Claim report';
+COMMIT;
 
 /*******************************************************************************/
 /* Merge top3 */

@@ -46,9 +46,9 @@ dbDisconnect(jdbcConnection)
 
 
 # Write raw data to csv
-write.table(t_ccc_pa_raw, here::here("Data" ,"t_ccc_pa_raw_2.csv"), row.names = FALSE, sep = ";", quote = FALSE)
-
-t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_raw_2.csv"), sep = ";", stringsAsFactors = FALSE)
+# write.table(t_ccc_pa_raw, here::here("Data" ,"t_ccc_pa_raw_2.csv"), row.names = FALSE, sep = ";", quote = FALSE)
+# 
+# t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_raw_2.csv"), sep = ";", stringsAsFactors = FALSE)
 
 
 # Concat media and activity -------------------------------------------------------------
