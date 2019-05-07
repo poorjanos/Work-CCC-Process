@@ -1,25 +1,23 @@
 ---
 title: "Contact Center: Top 3 Requests Overview"
-output:
-  html_document:
-    toc: TRUE
+author: "János Poór"
+date: 'May 9, 2019'
+output: rmdformats::readthedown
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-```{r, message=FALSE,}
+```{r, message=FALSE, warning=FALSE}
 library(here)
 library(dplyr)
 library(ggplot2)
-library(purrr)
 library(lubridate)
 library(scales)
 library(tidyr)
-library(bupaR)
-library(processmapR)
-library(DiagrammeR)
+library(ggrepel)
+library(forcats)
 ```
 
 ```{r, message=FALSE}
@@ -29,7 +27,8 @@ t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_top3.csv"), sep = ";", strings
 t_ccc_pa <- t_ccc_pa %>%
   mutate(EVENT_END = ymd_hms(EVENT_END)) %>% 
   filter(EVENT_END < as.Date('2019-01-01'))
-  
+
+t_ccc_pa[t_ccc_pa$CASE_TYPE_EN == "Delete contract", "CASE_TYPE_EN"] <- "Contract termination"
 ```
 
 # Introduction
@@ -44,320 +43,207 @@ The Advanced Analytics Team delivers:
 * etc
 
 
+# Identify the Biggest Impact
 
-### Identify the Biggest Volumes: Number of Cases by Month
+## Number of Cases by Month
+
+Biggest volumes in
+* CAR contract termination
+* HOUSE claim report
+
+
 ```{r}
 t_ccc_pa %>%
   # Transform data
   filter(PRODUCT_LINE != "UNKNOWN") %>% 
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
   group_by(CASE_ID, CASE_TYPE_EN, PRODUCT_LINE) %>%
-  summarize(CASE_START_MONTH = min(EVENT_MONTH)) %>%
+  mutate(CASE_START_MONTH = min(EVENT_MONTH)) %>%
   ungroup() %>%
   group_by(CASE_START_MONTH, CASE_TYPE_EN, PRODUCT_LINE) %>%
-  summarize(COUNT = n()) %>%
+  summarize(CASES = n_distinct(CASE_ID),
+            EVENTS = n()) %>%
+  ungroup() %>%
+  mutate(EVENT_PER_CASE = EVENTS/CASES) %>% 
   # Plot
-  ggplot(aes(x = substr(as.character(CASE_START_MONTH), 1, 7), y = COUNT, group = 1)) +
-  geom_line(size = 0.8) +
+  ggplot(aes(x = substr(as.character(CASE_START_MONTH), 1, 7), group = 1)) +
+  geom_line(aes(y = CASES, colour = "CASES"), size = 0.8) +
+  geom_line(aes(y = EVENTS, colour = "EVENTS"), size = 0.8) +
   scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
   theme(axis.text.x = element_text(angle = 90, size = 6)) +
-  facet_grid(CASE_TYPE_EN~PRODUCT_LINE) +
+  facet_grid(CASE_TYPE_EN~PRODUCT_LINE, labeller = label_wrap_gen(width=10)) +
   labs(
     x = "Month",
-    y = "# of Cases",
-    title = "Number of Cases per Start Month"
+    y = "Count",
+    title = "Number of Cases and Events per Month"
   )
+```
+
+## Number of Interactions
+
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
+  group_by(CASE_ID, CASE_TYPE_EN, PRODUCT_LINE) %>%
+  mutate(CASE_START_MONTH = min(EVENT_MONTH)) %>%
+  ungroup() %>%
+  group_by(CASE_START_MONTH, CASE_TYPE_EN, PRODUCT_LINE) %>%
+  summarize(CASES = n_distinct(CASE_ID),
+            EVENTS = n()) %>%
+  ungroup() %>%
+  mutate(EVENT_PER_CASE = EVENTS/CASES) %>% 
+  # Plot
+  ggplot(aes(x = substr(as.character(CASE_START_MONTH), 1, 7), group = 1)) +
+  geom_line(aes(y = EVENT_PER_CASE), size = 0.8) +
+  theme(axis.text.x = element_text(angle = 90, size = 6)) +
+  facet_grid(CASE_TYPE_EN~PRODUCT_LINE, labeller = label_wrap_gen(width=10)) +
+  labs(
+    x = "Month",
+    y = "Count",
+    title = "Number of Interactions per Case"
+  )
+```
+
+## Impact Map of Request Types
+
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
+  group_by(CASE_ID, CASE_TYPE_EN, PRODUCT_LINE) %>%
+  mutate(CASE_START_MONTH = min(EVENT_MONTH)) %>%
+  ungroup() %>%
+  group_by(CASE_START_MONTH, CASE_TYPE_EN, PRODUCT_LINE) %>%
+  summarize(CASES = n_distinct(CASE_ID),
+            EVENTS = n()) %>%
+  ungroup() %>%
+  mutate(EVENT_PER_CASE = EVENTS/CASES,
+         SEGMENT = paste(PRODUCT_LINE, CASE_TYPE_EN)) %>%
+  group_by(SEGMENT) %>%
+  summarize(CASES = mean(CASES),
+            EVENTS = mean(EVENTS),
+            EVENTS_PER_CASE = mean(EVENT_PER_CASE)) %>% 
+  ungroup() %>% 
+  # Plot
+  ggplot(aes(x = EVENTS, y = EVENTS_PER_CASE, label = SEGMENT)) +
+    geom_point(aes(size = CASES), colour = "blue") +
+    geom_label_repel(aes(label = SEGMENT),
+                  box.padding   = 0.35, 
+                  point.padding = 0.5,
+                  segment.color = 'grey50') +
+    coord_cartesian(ylim = c(0, 4.5)) +
+    labs(
+      x = "Interactions (Monthly Average)",
+    y = "Interactions per Case (Monthly Average)",
+    title = "Impact Map of Major Request Types"
+    )
+```
+
+## Impact Map by Channel
+
+```{r, fig.width=14, fig.height=14}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
+  group_by(CASE_ID, CASE_TYPE_EN, PRODUCT_LINE) %>%
+  mutate(CASE_START_MONTH = min(EVENT_MONTH)) %>%
+  ungroup() %>%
+  group_by(CASE_START_MONTH, CASE_TYPE_EN, PRODUCT_LINE, EVENT_CHANNEL) %>%
+  summarize(CASES = n_distinct(CASE_ID),
+            EVENTS = n()) %>%
+  ungroup() %>%
+  mutate(EVENT_PER_CASE = EVENTS/CASES,
+         SEGMENT = paste(PRODUCT_LINE, CASE_TYPE_EN)) %>%
+  group_by(SEGMENT, EVENT_CHANNEL) %>%
+  summarize(CASES = mean(CASES),
+            EVENTS = mean(EVENTS),
+            EVENTS_PER_CASE = mean(EVENT_PER_CASE)) %>% 
+  ungroup() %>% 
+  # Plot
+  ggplot(aes(x = EVENTS, y = EVENTS_PER_CASE, label = SEGMENT)) +
+    geom_point(aes(size = CASES), colour = "blue") +
+    geom_label_repel(aes(label = SEGMENT),
+                      size = 3,
+                      box.padding   = 0.35, 
+                      point.padding = 0.5,
+                      segment.color = 'grey50') +
+    coord_cartesian(ylim = c(0, 4.5)) +
+    labs(
+      x = "Interactions (Monthly Average)",
+    y = "Interactions per Case (Monthly Average)",
+    title = "Impact Map of Major Request Types by Channel"
+    ) +
+    facet_wrap(~EVENT_CHANNEL, ncol = 2)
 ```
 
 ***
 
-
-# Process Structure by Case Type
-
-Each case type is a different contact reason. Thus this part of the analysis is run for case types separately.
-
-```{r, cache = TRUE}
-# Add cols to event log required by BupaR
-t_ccc_pa_eventlog <- t_ccc_pa %>%
-  arrange(CASE_ID, EVENT_END) %>%
-  mutate(
-    ACTIVITY_INST_ID = as.numeric(row.names(.)),
-    LIFECYCLE_ID = "END"
-  )
-
-
-# Define analytics functions
-# Trace number
-get_trace_num <- function(df){
-  number_of_traces(
-    eventlog(
-           df,
-           case_id = "CASE_ID",
-           activity_id = "ACTIVITY_EN",
-           activity_instance_id = "ACTIVITY_INST_ID",
-           lifecycle_id = "LIFECYCLE_ID",
-           timestamp = "EVENT_END",
-           resource_id = "USER_ID"
-           ))
-}
-
-# Trace coverage
-get_trace_cov <- function(df){
-  trace_coverage(
-    eventlog(
-      df,
-      case_id = "CASE_ID",
-           activity_id = "ACTIVITY_EN",
-           activity_instance_id = "ACTIVITY_INST_ID",
-           lifecycle_id = "LIFECYCLE_ID",
-           timestamp = "EVENT_END",
-           resource_id = "USER_ID"
-    ), level = "trace")
-}
-
-
-# Trace lenght aggregates
-get_trace_length <- function(df) {
-  tidyr::spread(
-    data = data.frame(
-      metric = c("mean", "median", "min", "max", "st_dev", "q1", "q3", "iqr"),
-      values = trace_length(
-        eventlog(
-          df,
-          case_id = "CASE_ID",
-           activity_id = "ACTIVITY_EN",
-           activity_instance_id = "ACTIVITY_INST_ID",
-           lifecycle_id = "LIFECYCLE_ID",
-           timestamp = "EVENT_END",
-           resource_id = "USER_ID"
-        ),
-        level = "log", units = "day"
-      )[c("mean", "median", "min", "max", "st_dev", "q1", "q3", "iqr")], row.names = NULL
-    ),
-    key = metric, value = values
-  )
-}
-
-
-# Trace lenght by case
-get_trace_length_by_case <- function(df) {
-  trace_length(
-    eventlog(
-      df,
-      case_id = "CASE_ID",
-      activity_id = "ACTIVITY_EN",
-      activity_instance_id = "ACTIVITY_INST_ID",
-      lifecycle_id = "LIFECYCLE_ID",
-      timestamp = "EVENT_END",
-      resource_id = "USER_ID"
-    ),
-    level = "case", units = "day"
-  )
-}
-
-
-# Throughput time
-get_through_time <- function(df) {
-  tidyr::spread(
-    data = data.frame(
-      metric = c("mean", "median", "min", "max", "st_dev", "q1", "q3"),
-      values = throughput_time(
-        eventlog(
-          df,
-          case_id = "CASE_ID",
-           activity_id = "ACTIVITY_EN",
-           activity_instance_id = "ACTIVITY_INST_ID",
-           lifecycle_id = "LIFECYCLE_ID",
-           timestamp = "EVENT_END",
-           resource_id = "USER_ID"
-        ),
-        level = "log", units = "day"
-      )[c("mean", "median", "min", "max", "st_dev", "q1", "q3")], row.names = NULL
-    ),
-    key = metric, value = values
-  )
-}
-
-
-# Throughput time by case
-get_through_time_by_case <- function(df) {
-    throughput_time(
-      eventlog(
-        df,
-        case_id = "CASE_ID",
-        activity_id = "ACTIVITY_EN",
-        activity_instance_id = "ACTIVITY_INST_ID",
-        lifecycle_id = "LIFECYCLE_ID",
-        timestamp = "EVENT_END",
-        resource_id = "USER_ID"
-      ),
-      level = "case", units = "day"
-    )
-}
-
-
-# Genarate nested df
-# Gen nested tables with aggregated stats in nested tables
-by_case_type <- t_ccc_pa_eventlog %>%
-  group_by(CASE_TYPE_EN) %>%
-  nest() %>%
-  mutate(
-    CASE_NUMBER = map(data, ~length(unique(.$CASE_ID))),
-    EVENT_NUMBER = map(data, ~length(unique(.$ACTIVITY_EN))),
-    TRACE_NUMBER = map(data, get_trace_num),
-    TRACE_COV = map(data, get_trace_cov),
-    TRACE_LENGTH_AGGREGATE = map(data, get_trace_length),
-    TRACE_LENGTH_BY_CASE = map(data, get_trace_length_by_case),
-    THROUGH_TIME_AGGREGATE = map(data, get_through_time),
-    THROUGH_TIME_BY_CASE = map(data, get_through_time_by_case)
-  )
-```
-
-### Trace Number per Case Type
-
-High variability of traces detected for each contact reason. 
+# Identify Critical Interactions
 
 ```{r}
-by_case_type %>% select(CASE_TYPE_EN, CASE_NUMBER, TRACE_NUMBER) %>%
-  unnest() %>% 
-  ggplot(aes(
-    x = factor(CASE_TYPE_EN, levels = unique(CASE_TYPE_EN[order(CASE_NUMBER)])), 
-    y = absolute)) +
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
+  mutate(
+    EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+    ACTIVITY_EN = case_when(
+    ACTIVITY_EN %in% c("Transmission", "Forward activity") ~ "Internal traffic activity",
+    TRUE ~ ACTIVITY_EN
+  )) %>%
+  mutate(ACTIVITY_EN = forcats::fct_lump(factor(ACTIVITY_EN), n = 15)) %>%
+  group_by(ACTIVITY_EN, EVENT_MONTH) %>% 
+  summarize(COUNT = n()) %>% 
+  ungroup() %>% 
+  group_by(ACTIVITY_EN) %>% 
+  summarize(COUNT = mean(COUNT)) %>% 
+  ungroup() %>% 
+  # Plor
+  ggplot(aes(x = factor(ACTIVITY_EN, levels = unique(ACTIVITY_EN[order(COUNT)])), y = COUNT)) +
     geom_bar(stat = "identity") +
-    theme_minimal() +
-    scale_y_continuous(label = unit_format(unit = "K")) +
+    scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
     coord_flip() +
     labs(
-      x = "Case Type (Ordered by Case Type Frequency)",
-      y = "# of Unique Traces",
-      title = "Number of Unique Traces per Case Type "
+      x = "Activity",
+      y = "# of Activity (Monthly Average)",
+      title = "Major Activity Types"
     )
 ```
 
-### Trace Coverage per Case Type
+## Interactions by Channel
 
-Despite high variability of traces it is only a small subset of traces that cover the majority of cases (strong Pareto effect). Traces are thus noisy, but there are a few strong patterns underneath.
-
-```{r}
-by_case_type %>% select(CASE_TYPE_EN, TRACE_COV) %>% 
-  unnest() %>% 
-  group_by(CASE_TYPE_EN) %>%
-  mutate(RNUM = row_number()) %>%
+```{r, fig.width=14, fig.height=14}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
+  mutate(
+    SEGMENT = paste(PRODUCT_LINE, CASE_TYPE_EN),
+    EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+    ACTIVITY_EN = case_when(
+    ACTIVITY_EN %in% c("Transmission", "Forward activity") ~ "Internal traffic activity",
+    TRUE ~ ACTIVITY_EN
+  )) %>%
+  mutate(ACTIVITY_EN = forcats::fct_lump(factor(ACTIVITY_EN), n = 10)) %>%
+  # Filter out non-value adding or non-specific activities
+  filter(!ACTIVITY_EN %in% c("Internal traffic activity", "Other")) %>% 
+  group_by(SEGMENT, EVENT_CHANNEL, ACTIVITY_EN, EVENT_MONTH) %>% 
+  summarize(COUNT = n()) %>% 
   ungroup() %>% 
-  ggplot(aes(x = RNUM, y = cum_sum)) +
-      geom_line() +
-      theme_minimal() +
-      theme(axis.text.x = element_text(angle = 90)) +
-      coord_cartesian(xlim = c(0, 500)) +
-      facet_wrap(~CASE_TYPE_EN, ncol = 4) +
-      labs(
-          x = "Unique traces",
-          y = "Coverage (Cumulative Perentage)",
-          title = "Trace Coverage Per Case Type"
-        )
-```
-
-
-### Trace Length per Case Type
-
-```{r}
-by_case_type %>% select(CASE_TYPE_EN, TRACE_LENGTH_BY_CASE) %>%
-  unnest() %>%
-  ggplot(
-    aes(x = reorder(CASE_TYPE_EN, CASE_ID, FUN = length),
-        y = trace_length)) +
-  geom_boxplot(outlier.shape = NA) +
-  theme_minimal() +
-  coord_flip(ylim = c(0,10)) +
-  scale_y_continuous(breaks=seq(0,10,1)) +
-  labs(
-    y = "Number of Activities",
-    x = "Case Type (Ordered by Case Type Frequency)",
-    title = "Distribution of Trace Length per Case Type"
-  )
-```
-
-### Throughput Time Distribution
-```{r}
-by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
-  unnest() %>%
-  ggplot(
-    aes(throughput_time)) +
-  geom_histogram(bins = 500) +
-  coord_cartesian(xlim = c(0,50)) +
-  theme_minimal() +
-  scale_y_continuous(label = unit_format(unit = "K")) +
-  labs(
-    y = "# of Cases",
-    x = "Throughput Time (days)",
-    title = "Distribution of Throughput Time"
-  )
-```
-
-### Throughput Time per Case Type
-```{r}
-by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
-  unnest() %>%
-  ggplot(
-    aes(x = reorder(CASE_TYPE_EN, CASE_ID, FUN = length),
-        y = throughput_time)) +
-  geom_boxplot(outlier.shape = NA) +
-  theme_minimal() +
-  coord_flip(ylim = c(0,50)) +
-  scale_y_continuous(breaks=seq(0,50,5)) +
-  labs(
-    y = "Throughput Time (day)",
-    x = "Case Type (Ordered by Case Type Frequency)",
-    title = "Distribution of Throughput Time per Case Type"
-  )
-```
-
-### Throughput Time By Month
-```{r}
-case_month <- t_ccc_pa_eventlog %>% 
-  group_by(CASE_ID) %>%
-  summarize(START_MONTH = floor_date(min(EVENT_END), unit="months")) %>% 
-  ungroup()
-
-by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
-  unnest() %>%
-  left_join(case_month, by = "CASE_ID") %>% 
-  group_by(START_MONTH) %>% 
-  summarize(THROUGHPUT_TIME_MEDIAN = median(throughput_time),
-             THROUGHPUT_TIME_AVG = mean(throughput_time)) %>% 
-  ungroup() %>%
-  ggplot(
-    aes(x = START_MONTH,
-        y = THROUGHPUT_TIME_MEDIAN)) +
-  geom_line() +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90)) +
-  labs(
-    y = "Throughput Time (day)",
-    x = "Month",
-    title = "Median Distribution of Throughput Time by Month"
-  )
-```
-
-### Throughput Time per Case Type By Month
-```{r}
-by_case_type %>% select(CASE_TYPE_EN, THROUGH_TIME_BY_CASE) %>%
-  unnest() %>%
-  left_join(case_month, by = "CASE_ID") %>% 
-  group_by(START_MONTH,  CASE_TYPE_EN) %>% 
-  summarize(THROUGHPUT_TIME_MEDIAN = median(throughput_time),
-             THROUGHPUT_TIME_AVG = mean(throughput_time)) %>% 
+  group_by(SEGMENT, ACTIVITY_EN, EVENT_CHANNEL) %>% 
+  summarize(COUNT = mean(COUNT)) %>% 
   ungroup() %>% 
-  ggplot(
-    aes(x = START_MONTH,
-        y = THROUGHPUT_TIME_MEDIAN)) +
-  geom_line() +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90)) +
-  facet_wrap(~CASE_TYPE_EN, ncol = 4, scales = "free") +
-  labs(
-    y = "Throughput Time (day)",
-    x = "Month",
-    title = "Median Distribution of Throughput Time per Case Type by Month"
-  )
+  # Plor
+  ggplot(aes(x = factor(ACTIVITY_EN, levels = unique(ACTIVITY_EN[order(ACTIVITY_EN)])), y = COUNT)) +
+    geom_bar(stat = "identity") +
+    scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
+    coord_flip() +
+    facet_grid(SEGMENT~EVENT_CHANNEL, labeller = label_wrap_gen(width=10)) +
+    labs(
+      x = "Activity",
+      y = "# of Activity (Monthly Average)",
+      title = "Major Activity Types"
+    ) 
 ```
