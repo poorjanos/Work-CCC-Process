@@ -21,7 +21,7 @@ library(forcats)
 ```
 
 ```{r, message=FALSE}
-t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_top3.csv"), sep = ";", stringsAsFactors = FALSE)
+t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_local_export_top3.csv"), sep = ";", stringsAsFactors = FALSE)
 
 # Transform Data Types Inplace
 t_ccc_pa <- t_ccc_pa %>%
@@ -106,7 +106,7 @@ t_ccc_pa %>%
   )
 ```
 
-## Impact Map of Request Types
+## Volume Map of Request Types
 
 ```{r}
 t_ccc_pa %>%
@@ -128,19 +128,55 @@ t_ccc_pa %>%
             EVENTS_PER_CASE = mean(EVENT_PER_CASE)) %>% 
   ungroup() %>% 
   # Plot
-  ggplot(aes(x = EVENTS, y = EVENTS_PER_CASE, label = SEGMENT)) +
-    geom_point(aes(size = CASES), colour = "blue") +
+  ggplot(aes(x = CASES, y = EVENTS_PER_CASE, label = SEGMENT)) +
+    geom_point(aes(size = EVENTS), colour = "blue") +
     geom_label_repel(aes(label = SEGMENT),
                   box.padding   = 0.35, 
                   point.padding = 0.5,
                   segment.color = 'grey50') +
     coord_cartesian(ylim = c(0, 4.5)) +
     labs(
-      x = "Interactions (Monthly Average)",
+      x = "Cases (Monthly Average)",
     y = "Interactions per Case (Monthly Average)",
-    title = "Impact Map of Major Request Types"
+    title = "Volume Map of Major Request Types"
     )
 ```
+
+## Channel Map of Request Types
+
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
+  group_by(CASE_ID, CASE_TYPE_EN, PRODUCT_LINE, EVENT_CHANNEL) %>%
+  mutate(CASE_START_MONTH = min(EVENT_MONTH)) %>%
+  ungroup() %>%
+  group_by(CASE_START_MONTH, CASE_TYPE_EN, PRODUCT_LINE, EVENT_CHANNEL) %>%
+  summarize(CASES = n_distinct(CASE_ID),
+            EVENTS = n()) %>%
+  ungroup() %>%
+  mutate(EVENT_PER_CASE = EVENTS/CASES,
+         SEGMENT = paste(PRODUCT_LINE, CASE_TYPE_EN)) %>%
+  group_by(PRODUCT_LINE, CASE_TYPE_EN, SEGMENT, EVENT_CHANNEL) %>%
+  summarize(CASES = mean(CASES),
+            EVENTS = mean(EVENTS),
+            EVENTS_PER_CASE = mean(EVENT_PER_CASE)) %>% 
+  ungroup() %>% 
+  # Plot
+  ggplot(aes(x = EVENT_CHANNEL, y = EVENTS)) +
+    geom_bar(stat = "identity") +
+    theme(axis.text.x = element_text(angle = 90)) +
+    #scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
+    #coord_flip() +
+    facet_grid(PRODUCT_LINE ~ CASE_TYPE_EN) +
+    labs(
+      x = "Channel",
+    y = "Interactions (Monthly Average)",
+    title = "Channel Map of Major Request Types"
+    )
+```
+
 
 ## Impact Map by Channel
 
@@ -164,8 +200,8 @@ t_ccc_pa %>%
             EVENTS_PER_CASE = mean(EVENT_PER_CASE)) %>% 
   ungroup() %>% 
   # Plot
-  ggplot(aes(x = EVENTS, y = EVENTS_PER_CASE, label = SEGMENT)) +
-    geom_point(aes(size = CASES), colour = "blue") +
+  ggplot(aes(x = CASES, y = EVENTS_PER_CASE, label = SEGMENT)) +
+    geom_point(aes(size = EVENTS), colour = "blue") +
     geom_label_repel(aes(label = SEGMENT),
                       size = 3,
                       box.padding   = 0.35, 
@@ -173,7 +209,7 @@ t_ccc_pa %>%
                       segment.color = 'grey50') +
     coord_cartesian(ylim = c(0, 4.5)) +
     labs(
-      x = "Interactions (Monthly Average)",
+      x = "Cases (Monthly Average)",
     y = "Interactions per Case (Monthly Average)",
     title = "Impact Map of Major Request Types by Channel"
     ) +

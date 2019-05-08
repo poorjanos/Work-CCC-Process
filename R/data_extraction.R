@@ -60,9 +60,19 @@ t_ccc_pa_PG_export <- t_ccc_pa_raw %>%
          CASE_TYPE_EN, CASE_TYPE_PROB_CAT, USER_ID, PRODUCT_CODE, PRODUCT_LINE) %>%
   arrange(CASE_ID, EVENT_END)
 
-
 # Change to names to fit PG
 names(t_ccc_pa_PG_export) <- c("Case ID", "Event end", "Activity", "Activity separate", "Channel", "Case type", "Case owner", "User", "Customer", "Customer type")
+
+
+# Gen local export for EDA
+t_ccc_pa_local_export <- t_ccc_pa_raw %>%
+  mutate(ACTIVITY_COMB_EN = paste(EVENT_CHANNEL, ACTIVITY_EN)) %>%
+  replace_na(list(PRODUCT_LINE = "UNKNOWN", PRODUCT_CODE = "UNKNOWN", CALL_TIME = 0)) %>%
+  select(CASE_ID, EVENT_END, ACTIVITY_COMB_EN, ACTIVITY_EN, EVENT_CHANNEL,
+         CASE_TYPE_EN, CASE_TYPE_PROB_CAT, USER_ID, PRODUCT_CODE, PRODUCT_LINE, CALL_TIME) %>%
+  arrange(CASE_ID, EVENT_END)
+
+
 
 
 # Write PG ready data to csv
@@ -72,7 +82,10 @@ write.table(t_ccc_pa_PG_export,
 
 
 
-
+# Write EDA
+write.table(t_ccc_pa_local_export,
+            here::here("Data", "t_ccc_pa_local_export_top3.csv"),
+            row.names = FALSE, sep = ";", quote = FALSE)
 
 
    
