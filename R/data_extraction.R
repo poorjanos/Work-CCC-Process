@@ -87,5 +87,4 @@ write.table(t_ccc_pa_local_export,
             here::here("Data", "t_ccc_pa_local_export_top3.csv"),
             row.names = FALSE, sep = ";", quote = FALSE)
 
-
    

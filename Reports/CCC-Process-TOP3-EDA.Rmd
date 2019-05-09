@@ -1,7 +1,7 @@
 ---
 title: "Contact Center: Top 3 Requests Overview"
 author: "János Poór"
-date: 'May 9, 2019'
+date: 'May 10, 2019'
 output: rmdformats::readthedown
 ---
 
@@ -22,13 +22,18 @@ library(forcats)
 
 ```{r, message=FALSE}
 t_ccc_pa <- read.csv(here::here("Data" ,"t_ccc_pa_local_export_top3.csv"), sep = ";", stringsAsFactors = FALSE)
+t_mnap <- read.csv(here::here("Data" ,"t_mnap.csv"), sep = ";", stringsAsFactors = FALSE)
 
 # Transform Data Types Inplace
 t_ccc_pa <- t_ccc_pa %>%
   mutate(EVENT_END = ymd_hms(EVENT_END)) %>% 
   filter(EVENT_END < as.Date('2019-01-01'))
 
+t_mnap <- t_mnap %>%mutate(IDOSZAK = ymd_hms(IDOSZAK))
+
 t_ccc_pa[t_ccc_pa$CASE_TYPE_EN == "Delete contract", "CASE_TYPE_EN"] <- "Contract termination"
+t_ccc_pa[t_ccc_pa$CASE_TYPE_EN == "Claim report" &
+           t_ccc_pa$ACTIVITY_EN == "Provide information", "ACTIVITY_EN"] <- "Provide information Claim"
 ```
 
 # Introduction
@@ -43,7 +48,7 @@ The Advanced Analytics Team delivers:
 * etc
 
 
-# Identify the Biggest Impact
+# Identify the Biggest Volumes
 
 ## Number of Cases by Month
 
@@ -61,21 +66,21 @@ t_ccc_pa %>%
   mutate(CASE_START_MONTH = min(EVENT_MONTH)) %>%
   ungroup() %>%
   group_by(CASE_START_MONTH, CASE_TYPE_EN, PRODUCT_LINE) %>%
-  summarize(CASES = n_distinct(CASE_ID),
-            EVENTS = n()) %>%
+  summarize(Requests = n_distinct(CASE_ID),
+            Interactions = n()) %>%
   ungroup() %>%
-  mutate(EVENT_PER_CASE = EVENTS/CASES) %>% 
+  mutate(EVENT_PER_CASE = Interactions/Requests) %>% 
   # Plot
   ggplot(aes(x = substr(as.character(CASE_START_MONTH), 1, 7), group = 1)) +
-  geom_line(aes(y = CASES, colour = "CASES"), size = 0.8) +
-  geom_line(aes(y = EVENTS, colour = "EVENTS"), size = 0.8) +
+  geom_line(aes(y = Requests, colour = "Requests"), size = 0.8) +
+  geom_line(aes(y = Interactions, colour = "Interactions"), size = 0.8) +
   scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
   theme(axis.text.x = element_text(angle = 90, size = 6)) +
   facet_grid(CASE_TYPE_EN~PRODUCT_LINE, labeller = label_wrap_gen(width=10)) +
   labs(
     x = "Month",
     y = "Count",
-    title = "Number of Cases and Events per Month"
+    title = "Number of Requests (Cases) and Interactions (Events) per Month"
   )
 ```
 
@@ -102,7 +107,7 @@ t_ccc_pa %>%
   labs(
     x = "Month",
     y = "Count",
-    title = "Number of Interactions per Case"
+    title = "Number of Interactions per Request"
   )
 ```
 
@@ -117,32 +122,44 @@ t_ccc_pa %>%
   mutate(CASE_START_MONTH = min(EVENT_MONTH)) %>%
   ungroup() %>%
   group_by(CASE_START_MONTH, CASE_TYPE_EN, PRODUCT_LINE) %>%
-  summarize(CASES = n_distinct(CASE_ID),
-            EVENTS = n()) %>%
+  summarize(Requests = n_distinct(CASE_ID),
+            Interactions = n()) %>%
   ungroup() %>%
-  mutate(EVENT_PER_CASE = EVENTS/CASES,
+  mutate(EVENT_PER_CASE = Interactions/Requests,
          SEGMENT = paste(PRODUCT_LINE, CASE_TYPE_EN)) %>%
   group_by(SEGMENT) %>%
-  summarize(CASES = mean(CASES),
-            EVENTS = mean(EVENTS),
+  summarize(Requests = mean(Requests),
+            Interactions = mean(Interactions),
             EVENTS_PER_CASE = mean(EVENT_PER_CASE)) %>% 
   ungroup() %>% 
   # Plot
-  ggplot(aes(x = CASES, y = EVENTS_PER_CASE, label = SEGMENT)) +
-    geom_point(aes(size = EVENTS), colour = "blue") +
+  ggplot(aes(x = Requests, y = EVENTS_PER_CASE, label = SEGMENT)) +
+    geom_point(aes(size = Interactions), colour = "blue") +
     geom_label_repel(aes(label = SEGMENT),
                   box.padding   = 0.35, 
                   point.padding = 0.5,
                   segment.color = 'grey50') +
     coord_cartesian(ylim = c(0, 4.5)) +
     labs(
-      x = "Cases (Monthly Average)",
-    y = "Interactions per Case (Monthly Average)",
+      x = "Requests (Monthly Average)",
+    y = "Interactions per Request (Monthly Average)",
     title = "Volume Map of Major Request Types"
     )
 ```
 
 ## Channel Map of Request Types
+
+
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  filter(EVENT_CHANNEL == "CALL") %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
+  group_by(EVENT_MONTH) %>% 
+  tally()
+```
+
 
 ```{r}
 t_ccc_pa %>%
@@ -168,7 +185,7 @@ t_ccc_pa %>%
     geom_bar(stat = "identity") +
     theme(axis.text.x = element_text(angle = 90)) +
     #scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
-    #coord_flip() +
+    coord_flip() +
     facet_grid(PRODUCT_LINE ~ CASE_TYPE_EN) +
     labs(
       x = "Channel",
@@ -177,48 +194,11 @@ t_ccc_pa %>%
     )
 ```
 
-
-## Impact Map by Channel
-
-```{r, fig.width=14, fig.height=14}
-t_ccc_pa %>%
-  # Transform data
-  filter(PRODUCT_LINE != "UNKNOWN") %>% 
-  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
-  group_by(CASE_ID, CASE_TYPE_EN, PRODUCT_LINE) %>%
-  mutate(CASE_START_MONTH = min(EVENT_MONTH)) %>%
-  ungroup() %>%
-  group_by(CASE_START_MONTH, CASE_TYPE_EN, PRODUCT_LINE, EVENT_CHANNEL) %>%
-  summarize(CASES = n_distinct(CASE_ID),
-            EVENTS = n()) %>%
-  ungroup() %>%
-  mutate(EVENT_PER_CASE = EVENTS/CASES,
-         SEGMENT = paste(PRODUCT_LINE, CASE_TYPE_EN)) %>%
-  group_by(SEGMENT, EVENT_CHANNEL) %>%
-  summarize(CASES = mean(CASES),
-            EVENTS = mean(EVENTS),
-            EVENTS_PER_CASE = mean(EVENT_PER_CASE)) %>% 
-  ungroup() %>% 
-  # Plot
-  ggplot(aes(x = CASES, y = EVENTS_PER_CASE, label = SEGMENT)) +
-    geom_point(aes(size = EVENTS), colour = "blue") +
-    geom_label_repel(aes(label = SEGMENT),
-                      size = 3,
-                      box.padding   = 0.35, 
-                      point.padding = 0.5,
-                      segment.color = 'grey50') +
-    coord_cartesian(ylim = c(0, 4.5)) +
-    labs(
-      x = "Cases (Monthly Average)",
-    y = "Interactions per Case (Monthly Average)",
-    title = "Impact Map of Major Request Types by Channel"
-    ) +
-    facet_wrap(~EVENT_CHANNEL, ncol = 2)
-```
-
 ***
 
-# Identify Critical Interactions
+# Understanding Interactions
+
+## General view
 
 ```{r}
 t_ccc_pa %>%
@@ -249,6 +229,40 @@ t_ccc_pa %>%
     )
 ```
 
+## View by Channel
+
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
+  mutate(
+    EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+    ACTIVITY_EN = case_when(
+    ACTIVITY_EN %in% c("Transmission", "Forward activity") ~ "Internal traffic activity",
+    TRUE ~ ACTIVITY_EN
+  )) %>%
+  filter(ACTIVITY_EN != "Internal traffic activity") %>% 
+  mutate(ACTIVITY_EN = forcats::fct_lump(factor(ACTIVITY_EN), n = 12)) %>%
+  group_by(EVENT_CHANNEL, ACTIVITY_EN, EVENT_MONTH) %>% 
+  summarize(COUNT = n()) %>% 
+  ungroup() %>% 
+  group_by(EVENT_CHANNEL, ACTIVITY_EN) %>% 
+  summarize(COUNT = mean(COUNT)) %>% 
+  ungroup() %>% 
+  # Plor
+  ggplot(aes(x = factor(ACTIVITY_EN, levels = unique(ACTIVITY_EN[order(ACTIVITY_EN, decreasing = TRUE)])), y = COUNT)) +
+    geom_bar(stat = "identity") +
+    theme(axis.text.x = element_text(angle = 90)) +
+    #scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
+    coord_flip() +
+    facet_grid(.~EVENT_CHANNEL) +
+    labs(
+      x = "Interaction type (Activity)",
+      y = "# of Interactions (Monthly Average)",
+      title = "Major Interaction Types by Channel\n(Excluding internal transmissions)"
+    )
+```
+
 ## Interactions by Channel
 
 ```{r, fig.width=14, fig.height=14}
@@ -262,7 +276,7 @@ t_ccc_pa %>%
     ACTIVITY_EN %in% c("Transmission", "Forward activity") ~ "Internal traffic activity",
     TRUE ~ ACTIVITY_EN
   )) %>%
-  mutate(ACTIVITY_EN = forcats::fct_lump(factor(ACTIVITY_EN), n = 10)) %>%
+  mutate(ACTIVITY_EN = forcats::fct_lump(factor(ACTIVITY_EN), n = 12)) %>%
   # Filter out non-value adding or non-specific activities
   filter(!ACTIVITY_EN %in% c("Internal traffic activity", "Other")) %>% 
   group_by(SEGMENT, EVENT_CHANNEL, ACTIVITY_EN, EVENT_MONTH) %>% 
@@ -283,3 +297,54 @@ t_ccc_pa %>%
       title = "Major Activity Types"
     ) 
 ```
+
+
+***
+
+# Call Times and FTEs
+
+# Call Volumes
+
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
+  mutate(
+    EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+    ACTIVITY_EN = case_when(
+    ACTIVITY_EN %in% c("Transmission", "Forward activity") ~ "Internal traffic activity",
+    TRUE ~ ACTIVITY_EN
+  )) %>%
+  group_by(EVENT_MONTH, CASE_TYPE_EN) %>% 
+  summarize(CALL_TIME = sum(CALL_TIME)) %>% 
+  ungroup() %>% 
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME/60/60/7/MNAP)
+```
+
+
+## FTE per Month
+
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN" & CALL_TIME > 0) %>%
+  mutate(
+    EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+    ACTIVITY_EN = case_when(
+    ACTIVITY_EN %in% c("Transmission", "Forward activity") ~ "Internal traffic activity",
+    TRUE ~ ACTIVITY_EN
+  )) %>%
+  group_by(EVENT_MONTH, CASE_TYPE_EN) %>% 
+  summarize(CALL_TIME_SUM = sum(CALL_TIME),
+            CALL_TIME_AVG = mean(CALL_TIME)/60,
+            CALL_TIME_MED = median(CALL_TIME)/60,
+            INTERACTIONS = n()) %>% 
+  ungroup() %>% 
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SUM/60/60/7/MNAP,
+         FAJL_FTE = FTE/INTERACTIONS*1000)
+```
+
+
+
