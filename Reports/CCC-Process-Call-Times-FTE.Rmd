@@ -1,0 +1,279 @@
+---
+title: "Contact Center: Call Times and FTE"
+author: "János Poór"
+date: 'May 10, 2019'
+output: rmdformats::readthedown
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(here)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(scales)
+library(tidyr)
+library(ggrepel)
+```
+
+```{r, message=FALSE, include=FALSE}
+#########################################################################################
+# Data Extraction #######################################################################
+#########################################################################################
+
+# Set JAVA_HOME, set max. memory, and load rJava library
+Sys.setenv(JAVA_HOME = "C:\\Program Files\\Java\\jre1.8.0_171")
+options(java.parameters = "-Xmx2g")
+library(rJava)
+
+# Output Java version
+.jinit()
+print(.jcall("java/lang/System", "S", "getProperty", "java.version"))
+
+# Load RJDBC library
+library(RJDBC)
+
+# Get credentials
+datamnr <-
+  config::get("datamnr", file = "C:\\Users\\PoorJ\\Projects\\config.yml")
+
+# Create connection driver
+jdbcDriver <-
+  JDBC(driverClass = "oracle.jdbc.OracleDriver", classPath = "C:\\Users\\PoorJ\\Desktop\\ojdbc7.jar")
+
+# Open connection: kontakt---------------------------------------------------------------
+jdbcConnection <-
+  dbConnect(
+    jdbcDriver,
+    url = datamnr$server,
+    user = datamnr$uid,
+    password = datamnr$pwd
+  )
+
+# Fetch data
+t_call_times <- dbGetQuery(jdbcConnection, 'select * from t_call_times')
+t_mnap <- dbGetQuery(jdbcConnection, 'select * from t_mnap')
+
+# Close db connection: kontakt
+dbDisconnect(jdbcConnection)
+
+
+# Transformations
+t_call_times <- t_call_times %>% 
+  mutate(EVENT_END = ymd_hms(EVENT_END)) %>% 
+  filter(EVENT_END < as.Date('2019-01-01')) %>% 
+  replace_na(list(PRODUCT_LINE = "UNKNOWN", PRODUCT_CODE = "UNKNOWN", CASE_TYPE_EN = "UNKNOWN"))
+
+t_call_times[t_call_times$CASE_TYPE_EN == "Delete contract", "CASE_TYPE_EN"] <- "Contract termination"
+t_call_times[t_call_times$CASE_TYPE_EN == "Claim report" &
+           t_call_times$ACTIVITY_EN == "Provide information", "ACTIVITY_EN"] <- "Provide information Claim"
+t_call_times[ t_call_times$ACTIVITY_EN == "!Delete contract", "ACTIVITY_EN"] <- "Delete contract"
+
+t_mnap <- t_mnap %>% mutate(IDOSZAK = ymd_hms(IDOSZAK))
+```
+
+# 1. Glossary
+
+* Call Volume: number of calls in period
+* FTE: Full-time-equivalent computed for one month
+* FTE_NORM: Normalized FTE - Full-time-equivalent computed for 1000 calls for one month
+
+
+# 2. Call Volumes and FTE
+
+```{r}
+t_call_times %>%
+  # Transform data
+  #filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
+  group_by(EVENT_MONTH) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         FTE_NORM = FTE/CALL_VOLUME*1000) %>%
+  select(EVENT_MONTH, CALL_VOLUME, FTE, FTE_NORM) %>% 
+  tidyr::gather(key = METRIC, value = VALUE, -EVENT_MONTH) %>% 
+  # Plot
+  ggplot(aes(x = substr(as.character(EVENT_MONTH), 1, 7), y = VALUE, group = 1)) +
+  geom_line() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  facet_grid(METRIC~., scales = "free") +
+  labs(
+    x = "Month",
+    y = "Value",
+    title = "Call Volumes and FTE"
+  )
+```
+
+
+***
+
+# 3. Understanding FTE across Request Types & Products
+
+## 3.1. Breakdown of Volumes and FTE across Request Types
+
+```{r, fig.width=14, fig.height=10}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         EVENT_QUARTER = paste0(year(EVENT_END), " q", quarter(EVENT_END)), 
+         CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = CASE_TYPE_EN) %>%
+  group_by(EVENT_MONTH, EVENT_QUARTER, SEGMENT) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  group_by(EVENT_QUARTER, SEGMENT) %>% 
+  summarize(CALL_VOLUME = sum(CALL_VOLUME),
+            CALL_TIME_SEC = sum(CALL_TIME_SEC),
+            MNAP = sum(MNAP)) %>% 
+  ungroup() %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         FTE_NORM = FTE*3/CALL_VOLUME*1000) %>%
+  select(EVENT_QUARTER, SEGMENT, CALL_VOLUME, FTE, FTE_NORM) %>% 
+  tidyr::gather(key = METRIC, value = VALUE, -EVENT_QUARTER, -SEGMENT) %>% 
+  # Plot
+  ggplot(aes(x = substr(as.character(EVENT_QUARTER), 1, 7), y = VALUE, group = 1)) +
+  geom_line() +
+  theme(axis.text.x = element_text(angle = 90),
+        strip.text.x = element_text(angle=90),
+        strip.text.y = element_text(angle=0)) +
+  facet_grid(METRIC~SEGMENT, scales = "free") +
+  labs(
+    x = "Month",
+    y = "Value",
+    title = "Call Volumes and FTE by Request Types (Quarterly Trends)"
+  )
+```
+
+
+## 3.2. Breakdown of Volumes and FTE across Request Types & Products
+
+```{r, fig.width=14, fig.height=10}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         EVENT_QUARTER = paste0(year(EVENT_END), " q", quarter(EVENT_END)), 
+         CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = paste(CASE_TYPE_EN, PRODUCT_LINE)) %>%
+  group_by(EVENT_MONTH, EVENT_QUARTER, SEGMENT) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  group_by(EVENT_QUARTER, SEGMENT) %>% 
+  summarize(CALL_VOLUME = sum(CALL_VOLUME),
+            CALL_TIME_SEC = sum(CALL_TIME_SEC),
+            MNAP = sum(MNAP)) %>% 
+  ungroup() %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         FTE_NORM = FTE*3/CALL_VOLUME*1000) %>%
+  select(EVENT_QUARTER, SEGMENT, CALL_VOLUME, FTE, FTE_NORM) %>% 
+  tidyr::gather(key = METRIC, value = VALUE, -EVENT_QUARTER, -SEGMENT) %>% 
+  # Plot
+  ggplot(aes(x = substr(as.character(EVENT_QUARTER), 1, 7), y = VALUE, group = 1)) +
+  geom_line() +
+  theme(axis.text.x = element_text(angle = 90, size = 6),
+        strip.text.x = element_text(angle=90),
+        strip.text.y = element_text(angle=0)) +
+  facet_grid(METRIC~SEGMENT, scales = "free") +
+  labs(
+    x = "Month",
+    y = "Value",
+    title = "Call Volumes and FTE by Request Types and Product (Quarterly Trends)"
+  )
+```
+
+***
+
+
+# 4. FTE Impact Map
+
+
+## 4.1. Identify the Most Resource Intensive Segments
+
+```{r}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN",
+         EVENT_END >= as.Date('2018-01-01')) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13)) %>%
+  group_by(EVENT_MONTH,  SEGMENT) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         FTE_NORM = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(SEGMENT) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            FTE_NORM = mean(FTE_NORM)) %>% 
+  # Plot
+  ggplot(aes(x = CALL_VOLUME, y = FTE_NORM, label = SEGMENT)) +
+    geom_point(aes(size = FTE), colour = "blue") +
+    geom_label_repel(aes(label = SEGMENT),
+                  box.padding   = 0.35, 
+                  point.padding = 0.5,
+                  segment.color = 'grey50') +
+    #coord_cartesian(ylim = c(0, 4.5)) +
+    labs(
+      x = "Calls (Monthly Average)",
+    y = "Normalized FTE (FTE for 1000 calls)",
+    title = "FTE Impact Map of Calls"
+    )
+```
+
+
+## 4.2. Understanding the Root-Causes of FTE comsumption
+
+```{r, fig.width=14, fig.height=14}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN",
+         EVENT_END >= as.Date('2018-01-01')) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13)) %>%
+  group_by(EVENT_MONTH, SEGMENT) %>% 
+  mutate(ACTIVITY_EN = as.character(forcats::fct_lump(ACTIVITY_EN, prop = 0.05))) %>% 
+  ungroup() %>% 
+  group_by(EVENT_MONTH, SEGMENT, ACTIVITY_EN) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         FTE_NORM = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(SEGMENT, ACTIVITY_EN) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            FTE_NORM = mean(FTE_NORM)) %>% 
+  tidyr::gather(-SEGMENT, -ACTIVITY_EN, key = METRIC, value = VALUE) %>% 
+  # Plot
+  ggplot(aes(x = ACTIVITY_EN, y = VALUE)) +
+    geom_bar(stat = "identity") +
+    theme(strip.text.y = element_text(angle=0)) +
+    coord_flip() +
+    facet_grid(SEGMENT~METRIC, scales = "free") +
+    labs(
+      x = "Calls types",
+    y = "Values",
+    title = "Call Types Comparison"
+    )
+```
+

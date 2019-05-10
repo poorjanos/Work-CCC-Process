@@ -29,7 +29,7 @@ t_ccc_pa <- t_ccc_pa %>%
   mutate(EVENT_END = ymd_hms(EVENT_END)) %>% 
   filter(EVENT_END < as.Date('2019-01-01'))
 
-t_mnap <- t_mnap %>%mutate(IDOSZAK = ymd_hms(IDOSZAK))
+t_mnap <- t_mnap %>% mutate(IDOSZAK = ymd_hms(IDOSZAK))
 
 t_ccc_pa[t_ccc_pa$CASE_TYPE_EN == "Delete contract", "CASE_TYPE_EN"] <- "Contract termination"
 t_ccc_pa[t_ccc_pa$CASE_TYPE_EN == "Claim report" &

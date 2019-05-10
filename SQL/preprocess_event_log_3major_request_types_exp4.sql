@@ -39,10 +39,10 @@ AS
                THEN
                   'Reklamacio OKK-ba tovabbitas'
                ELSE
-                  REGEXP_REPLACE (hun1, '->.*', '')
+                  REGEXP_REPLACE (nvl(hun1, '!'||attrib1), '->.*', '')
             END
                AS activity_hu,
-            REGEXP_REPLACE (hun1eng, '->.*', '') AS activity_en,
+            REGEXP_REPLACE (nvl(hun1eng, '!'||attrib1eng ), '->.*', '') AS activity_en,
             attrib0 AS case_type_hu,
             attrib0eng AS case_type_en,
             attrib0_p AS case_type_prob,
@@ -60,11 +60,11 @@ AS
             attrib1,
             attrib1eng,
             call_time
-     FROM   mesterr.export_pa_wflog4
+     FROM   mesterr.export_pa_wflog5
     WHERE       wflog_user LIKE 'CCC/%'
             AND f_paid LIKE 'S%'
-            AND hun1 IS NOT NULL
-            AND TRIM (hun1) <> 'Visszalepes'
+            --AND hun1 IS NOT NULL
+            --AND TRIM (hun1) <> 'Visszalepes'
             AND attrib0 = 'Torles';
 
 COMMIT;
@@ -154,10 +154,10 @@ AS
                THEN
                   'Reklamacio OKK-ba tovabbitas'
                ELSE
-                  REGEXP_REPLACE (hun1, '->.*', '')
+                  REGEXP_REPLACE (nvl(hun1, '!'||attrib1), '->.*', '')
             END
                AS activity_hu,
-            REGEXP_REPLACE (hun1eng, '->.*', '') AS activity_en,
+            REGEXP_REPLACE (nvl(hun1eng, '!'||attrib1eng ), '->.*', '') AS activity_en,
             attrib0 AS case_type_hu,
             attrib0eng AS case_type_en,
             attrib0_p AS case_type_prob,
@@ -175,11 +175,11 @@ AS
             attrib1,
             attrib1eng,
             call_time
-     FROM   mesterr.export_pa_wflog4
+     FROM   mesterr.export_pa_wflog5
     WHERE       wflog_user LIKE 'CCC/%'
             AND f_paid LIKE 'S%'
-            AND hun1 IS NOT NULL
-            AND TRIM (hun1) <> 'Visszalepes'
+            --AND hun1 IS NOT NULL
+            --AND TRIM (hun1) <> 'Visszalepes'
             AND attrib0 = 'Tajekoztatas';
 
 COMMIT;
@@ -269,10 +269,10 @@ AS
                THEN
                   'Reklamacio OKK-ba tovabbitas'
                ELSE
-                  REGEXP_REPLACE (hun1, '->.*', '')
+                  REGEXP_REPLACE (nvl(hun1, '!'||attrib1 ), '->.*', '')
             END
                AS activity_hu,
-            REGEXP_REPLACE (hun1eng, '->.*', '') AS activity_en,
+            REGEXP_REPLACE (nvl(hun1eng, '!'||attrib1eng ), '->.*', '') AS activity_en,
             attrib0 AS case_type_hu,
             attrib0eng AS case_type_en,
             attrib0_p AS case_type_prob,
@@ -290,11 +290,11 @@ AS
             attrib1,
             attrib1eng,
             call_time
-     FROM   mesterr.export_pa_wflog4
+     FROM   mesterr.export_pa_wflog5
     WHERE       wflog_user LIKE 'CCC/%'
             AND f_paid LIKE 'K%'
-            AND hun1 IS NOT NULL
-            AND TRIM (hun1) <> 'Visszalepes'
+            --AND hun1 IS NOT NULL
+            --AND TRIM (hun1) <> 'Visszalepes'
             AND attrib0 IN
                      ('Karbejelentes', 'GEPJARMUKAR', 'SZEMLES VAGYONKAR');
 
