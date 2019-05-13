@@ -63,10 +63,10 @@ AS
                  THEN
                     'Reklamacio OKK-ba tovabbitas'
                  ELSE
-                    REGEXP_REPLACE (NVL (hun1, '!' || attrib1), '->.*', '')
+                    REGEXP_REPLACE (NVL (hun1, attrib1), '->.*', '')
               END
                  AS activity_hu,
-              REGEXP_REPLACE (NVL (hun1eng, '!' || attrib1eng), '->.*', '')
+              REGEXP_REPLACE (NVL (hun1eng, attrib1eng), '->.*', '')
                  AS activity_en,
               attrib0 AS case_type_hu,
               attrib0eng AS case_type_en,

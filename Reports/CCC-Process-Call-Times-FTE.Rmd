@@ -207,7 +207,7 @@ t_call_times %>%
          EVENT_END >= as.Date('2018-01-01')) %>% 
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
          #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
-         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13)) %>%
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13, other_level = "Everything else")) %>%
   group_by(EVENT_MONTH,  SEGMENT) %>%
   summarize(CALL_VOLUME = n(),
             CALL_TIME_SEC = sum(CALL_TIME)) %>%
@@ -225,7 +225,7 @@ t_call_times %>%
   ggplot(aes(x = CALL_VOLUME, y = FTE_NORM, label = SEGMENT)) +
     geom_point(aes(size = FTE), colour = "blue") +
     geom_label_repel(aes(label = SEGMENT),
-                  box.padding   = 0.35, 
+                  box.padding   = 0.2, 
                   point.padding = 0.5,
                   segment.color = 'grey50') +
     #coord_cartesian(ylim = c(0, 4.5)) +
