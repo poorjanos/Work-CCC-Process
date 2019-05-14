@@ -62,15 +62,23 @@ dbDisconnect(jdbcConnection)
 
 
 # Transformations
-t_call_times <- t_call_times %>% 
-  mutate(EVENT_END = ymd_hms(EVENT_END)) %>% 
-  filter(EVENT_END < as.Date('2019-01-01')) %>% 
+t_call_times <- t_call_times %>%
+  mutate(EVENT_END = ymd_hms(EVENT_END)) %>%
+  filter(EVENT_END < as.Date("2019-01-01")) %>%
   replace_na(list(PRODUCT_LINE = "UNKNOWN", PRODUCT_CODE = "UNKNOWN", CASE_TYPE_EN = "UNKNOWN"))
 
 t_call_times[t_call_times$CASE_TYPE_EN == "Delete contract", "CASE_TYPE_EN"] <- "Contract termination"
-t_call_times[t_call_times$CASE_TYPE_EN == "Claim report" &
-           t_call_times$ACTIVITY_EN == "Provide information", "ACTIVITY_EN"] <- "Provide information Claim"
+
 t_call_times[ t_call_times$ACTIVITY_EN == "!Delete contract", "ACTIVITY_EN"] <- "Delete contract"
+
+t_call_times[t_call_times$CASE_TYPE_EN == "Claim report" &
+  t_call_times$ACTIVITY_EN %in% c("Provide information Property assignments", "Provide information Motor vehicle claim report") &
+  startsWith(t_call_times$CASE_ID, "S"), "ACTIVITY_EN"] <- "Provide information NOT on claim file"
+
+t_call_times[t_call_times$CASE_TYPE_EN == "Claim report" &
+  t_call_times$ACTIVITY_EN %in% c("Provide information Property assignments", "Provide information Motor vehicle claim report") &
+  startsWith(t_call_times$CASE_ID, "K"), "ACTIVITY_EN"] <- "Provide information on claim file"
+
 
 t_mnap <- t_mnap %>% mutate(IDOSZAK = ymd_hms(IDOSZAK))
 ```

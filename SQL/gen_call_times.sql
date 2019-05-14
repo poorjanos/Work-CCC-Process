@@ -1,29 +1,29 @@
-/* Test: TCT Volume and FTE */
-SELECT   c.*, ido_sec / 60 / 60 / 7 / mnap AS FTE
-  FROM   (SELECT   a.*, b.mnap
-            FROM   (  SELECT   TRUNC (idopont, 'MM') AS idoszak,
-                               COUNT (f_hivas_azon) db,
-                               SUM (ido) ido_sec
-                        FROM   (SELECT   DISTINCT f_hivas_azon, idopont, ido
-                                  FROM   mesterr.pa_ivk_hivasido)
-                    GROUP BY   TRUNC (idopont, 'MM')
-                    ORDER BY   TRUNC (idopont, 'MM')) a,
-                   t_mnap b
-           WHERE   a.idoszak = b.idoszak) c;
+--/* Test: TCT Volume and FTE */
+--SELECT   c.*, ido_sec / 60 / 60 / 7 / mnap AS FTE
+--  FROM   (SELECT   a.*, b.mnap
+--            FROM   (  SELECT   TRUNC (idopont, 'MM') AS idoszak,
+--                               COUNT (f_hivas_azon) db,
+--                               SUM (ido) ido_sec
+--                        FROM   (SELECT   DISTINCT f_hivas_azon, idopont, ido
+--                                  FROM   mesterr.pa_ivk_hivasido)
+--                    GROUP BY   TRUNC (idopont, 'MM')
+--                    ORDER BY   TRUNC (idopont, 'MM')) a,
+--                   t_mnap b
+--           WHERE   a.idoszak = b.idoszak) c;
 
 
-/* Test: EXPORT5 Volume and FTE */
-SELECT   a.idoszak, db, ido_sec / 60 / 60 / 7 / mnap AS FTE
-  FROM   (  SELECT   TRUNC (f_idopont, 'MM') AS idoszak,
-                     COUNT (f_paid) AS db,
-                     SUM (call_time) AS ido_sec
-              FROM   MESTERR.EXPORT_PA_WFLOG5
-             WHERE   call_time > 0 --and hun1 is not null
-                     AND wflog_user LIKE 'CCC/%'
-          GROUP BY   TRUNC (f_idopont, 'MM')
-          ORDER BY   TRUNC (f_idopont, 'MM')) a,
-         t_mnap b
- WHERE   a.idoszak = b.idoszak;
+--/* Test: EXPORT5 Volume and FTE */
+--SELECT   a.idoszak, db, ido_sec / 60 / 60 / 7 / mnap AS FTE
+--  FROM   (  SELECT   TRUNC (f_idopont, 'MM') AS idoszak,
+--                     COUNT (f_paid) AS db,
+--                     SUM (call_time) AS ido_sec
+--              FROM   MESTERR.EXPORT_PA_WFLOG5
+--             WHERE   call_time > 0 --and hun1 is not null
+--                     AND wflog_user LIKE 'CCC/%'
+--          GROUP BY   TRUNC (f_idopont, 'MM')
+--          ORDER BY   TRUNC (f_idopont, 'MM')) a,
+--         t_mnap b
+-- WHERE   a.idoszak = b.idoszak;
 
 
 
@@ -93,12 +93,13 @@ COMMIT;
 
 
 
-/* Fix Claim report*/
+/* Fix Claim report */
 UPDATE   t_call_times
    SET   case_type_en = 'Claim report'
  WHERE   case_type_en IN ('Car claim', 'Property claim with inspection');
 
 COMMIT;
+
 
 
 

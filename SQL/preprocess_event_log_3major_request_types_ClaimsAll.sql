@@ -39,10 +39,10 @@ AS
                THEN
                   'Reklamacio OKK-ba tovabbitas'
                ELSE
-                  REGEXP_REPLACE (nvl(hun1, '!'||attrib1), '->.*', '')
+                  REGEXP_REPLACE (nvl(hun1, attrib1), '->.*', '')
             END
                AS activity_hu,
-            REGEXP_REPLACE (nvl(hun1eng, '!'||attrib1eng ), '->.*', '') AS activity_en,
+            REGEXP_REPLACE (nvl(hun1eng, attrib1eng ), '->.*', '') AS activity_en,
             attrib0 AS case_type_hu,
             attrib0eng AS case_type_en,
             attrib0_p AS case_type_prob,
@@ -154,10 +154,10 @@ AS
                THEN
                   'Reklamacio OKK-ba tovabbitas'
                ELSE
-                  REGEXP_REPLACE (nvl(hun1, '!'||attrib1), '->.*', '')
+                  REGEXP_REPLACE (nvl(hun1, attrib1), '->.*', '')
             END
                AS activity_hu,
-            REGEXP_REPLACE (nvl(hun1eng, '!'||attrib1eng ), '->.*', '') AS activity_en,
+            REGEXP_REPLACE (nvl(hun1eng, attrib1eng ), '->.*', '') AS activity_en,
             attrib0 AS case_type_hu,
             attrib0eng AS case_type_en,
             attrib0_p AS case_type_prob,
@@ -180,8 +180,7 @@ AS
             AND f_paid LIKE 'S%'
             --AND hun1 IS NOT NULL
             --AND TRIM (hun1) <> 'Visszalepes'
-            AND attrib0 = 'Tajekoztatas';
-
+            AND attrib0 = 'Tajekoztatas';        
 COMMIT;
 
 /* Compute most common info types to upgrade activity names*/
@@ -234,10 +233,10 @@ COMMIT;
 /*******************************************************************************/
 
 /* Gen base table and rename cols for CLAIM REPORT */
-DROP TABLE T_CCC_PA_OUTPUT_KAR;
+DROP TABLE T_CCC_PA_OUTPUT_KAR_ALL;
 COMMIT;
 
-CREATE TABLE T_CCC_PA_OUTPUT_KAR
+CREATE TABLE T_CCC_PA_OUTPUT_KAR_ALL
 AS
    SELECT   DISTINCT
             f_paid AS case_id,
@@ -269,10 +268,10 @@ AS
                THEN
                   'Reklamacio OKK-ba tovabbitas'
                ELSE
-                  REGEXP_REPLACE (nvl(hun1, '!'||attrib1 ), '->.*', '')
+                  REGEXP_REPLACE (nvl(hun1, attrib1 ), '->.*', '')
             END
                AS activity_hu,
-            REGEXP_REPLACE (nvl(hun1eng, '!'||attrib1eng ), '->.*', '') AS activity_en,
+            REGEXP_REPLACE (nvl(hun1eng, attrib1eng ), '->.*', '') AS activity_en,
             attrib0 AS case_type_hu,
             attrib0eng AS case_type_en,
             attrib0_p AS case_type_prob,
@@ -292,7 +291,7 @@ AS
             call_time
      FROM   mesterr.export_pa_wflog5
     WHERE       wflog_user LIKE 'CCC/%'
-            AND f_paid LIKE 'K%'
+            --AND f_paid LIKE 'K%'
             --AND hun1 IS NOT NULL
             --AND TRIM (hun1) <> 'Visszalepes'
             AND attrib0 IN
@@ -300,19 +299,19 @@ AS
 
 COMMIT;
 
-UPDATE   T_CCC_PA_OUTPUT_KAR a
+UPDATE   T_CCC_PA_OUTPUT_KAR_ALL a
    SET   product_line = 'HOUSE'
  WHERE   a.product_line IS NULL AND REGEXP_LIKE (a.product_code, '^2.968.*')
          OR REGEXP_LIKE (a.product_code, '^2.954.*');
 
 COMMIT;
 
-UPDATE   T_CCC_PA_OUTPUT_KAR a
+UPDATE   T_CCC_PA_OUTPUT_KAR_ALL a
    SET   case_type_hu = 'Karbejelentes';
 
 COMMIT;
 
-UPDATE   T_CCC_PA_OUTPUT_KAR a
+UPDATE   T_CCC_PA_OUTPUT_KAR_ALL a
    SET   case_type_en = 'Claim report';
 
 COMMIT;
@@ -320,23 +319,23 @@ COMMIT;
 /*******************************************************************************/
 
 /* Merge top3 */
-DROP TABLE T_CCC_PA_OUTPUT_TOP3;
+DROP TABLE T_CCC_PA_OUTPUT_TOP3_CLAIMALL;
 COMMIT;
 
-CREATE TABLE T_CCC_PA_OUTPUT_TOP3
+CREATE TABLE T_CCC_PA_OUTPUT_TOP3_CLAIMALL
 AS
    SELECT   * FROM T_CCC_PA_OUTPUT_TORLES
    UNION
    SELECT   * FROM T_CCC_PA_OUTPUT_TAJ
    UNION
-   SELECT   * FROM T_CCC_PA_OUTPUT_KAR;
+   SELECT   * FROM T_CCC_PA_OUTPUT_KAR_ALL;
 
 COMMIT;
 
 
 /* Define then drop cases with first event outside 201701.01. and 2018.12.01.*/
 
-DELETE FROM   T_CCC_PA_OUTPUT_TOP3
+DELETE FROM   T_CCC_PA_OUTPUT_TOP3_CLAIMALL
       WHERE   case_id IN
                     (SELECT   case_id
                        FROM   (  SELECT   case_id,
