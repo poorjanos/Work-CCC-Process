@@ -1,7 +1,7 @@
 ---
 title: "Contact Center: Call Times and FTE"
 author: "János Poór"
-date: 'May 10, 2019'
+date: 'May 17, 2019'
 output: rmdformats::readthedown
 ---
 
@@ -87,7 +87,7 @@ t_mnap <- t_mnap %>% mutate(IDOSZAK = ymd_hms(IDOSZAK))
 
 * Call Volume: number of calls in period
 * FTE: Full-time-equivalent computed for one month
-* FTE_NORM: Normalized FTE - Full-time-equivalent computed for 1000 calls for one month
+* Cost (per call): Normalized FTE - Full-time-equivalent computed for 1000 calls for one month
 
 
 # 2. Call Volumes and FTE
@@ -103,9 +103,10 @@ t_call_times %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
   mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
-         FTE_NORM = FTE/CALL_VOLUME*1000) %>%
-  select(EVENT_MONTH, CALL_VOLUME, FTE, FTE_NORM) %>% 
-  tidyr::gather(key = METRIC, value = VALUE, -EVENT_MONTH) %>% 
+         COST = FTE/CALL_VOLUME*1000) %>%
+  select(EVENT_MONTH, CALL_VOLUME, FTE, COST) %>% 
+  tidyr::gather(key = METRIC, value = VALUE, -EVENT_MONTH) %>%
+  mutate(METRIC = factor(METRIC, levels = c("CALL_VOLUME", "FTE", "COST"))) %>% 
   # Plot
   ggplot(aes(x = substr(as.character(EVENT_MONTH), 1, 7), y = VALUE, group = 1)) +
   geom_line() +
@@ -144,9 +145,10 @@ t_call_times %>%
             MNAP = sum(MNAP)) %>% 
   ungroup() %>% 
   mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
-         FTE_NORM = FTE*3/CALL_VOLUME*1000) %>%
-  select(EVENT_QUARTER, SEGMENT, CALL_VOLUME, FTE, FTE_NORM) %>% 
+         COST = FTE*3/CALL_VOLUME*1000) %>%
+  select(EVENT_QUARTER, SEGMENT, CALL_VOLUME, FTE, COST) %>% 
   tidyr::gather(key = METRIC, value = VALUE, -EVENT_QUARTER, -SEGMENT) %>% 
+  mutate(METRIC = factor(METRIC, levels = c("CALL_VOLUME", "FTE", "COST"))) %>% 
   # Plot
   ggplot(aes(x = substr(as.character(EVENT_QUARTER), 1, 7), y = VALUE, group = 1)) +
   geom_line() +
@@ -183,9 +185,10 @@ t_call_times %>%
             MNAP = sum(MNAP)) %>% 
   ungroup() %>% 
   mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
-         FTE_NORM = FTE*3/CALL_VOLUME*1000) %>%
-  select(EVENT_QUARTER, SEGMENT, CALL_VOLUME, FTE, FTE_NORM) %>% 
+         COST = FTE*3/CALL_VOLUME*1000) %>%
+  select(EVENT_QUARTER, SEGMENT, CALL_VOLUME, FTE, COST) %>% 
   tidyr::gather(key = METRIC, value = VALUE, -EVENT_QUARTER, -SEGMENT) %>% 
+  mutate(METRIC = factor(METRIC, levels = c("CALL_VOLUME", "FTE", "COST"))) %>% 
   # Plot
   ggplot(aes(x = substr(as.character(EVENT_QUARTER), 1, 7), y = VALUE, group = 1)) +
   geom_line() +
@@ -206,7 +209,19 @@ t_call_times %>%
 # 4. FTE Impact Map
 
 
-## 4.1. Identify the Most Resource Intensive Segments
+## 4.1. Impact Map: Identify Processes that Cosume Most FTE
+
+Gross FTE is the product of two factors: 
+
+* Call volume: number of calls in period
+* Cost per call: cost of one call (measured by normalized FTE for 1000 calls)
+
+The impact map represents FTE consumption by ball-size. Additionally it gives insight into how that FTE is genereated. The same amount of FTE can be due to different reasons. For example:  
+
+* High call volume with low call per cost
+* Low call volume with high call per cost
+
+> A business case can target either of the above factors.
 
 ```{r}
 t_call_times %>%
@@ -222,15 +237,15 @@ t_call_times %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
   mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
-         FTE_NORM = FTE/CALL_VOLUME*1000) %>%
+         COST = FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
   group_by(SEGMENT) %>% 
   summarize(
             CALL_VOLUME = mean(CALL_VOLUME),
             FTE = mean(FTE),
-            FTE_NORM = mean(FTE_NORM)) %>% 
+            COST = mean(COST)) %>% 
   # Plot
-  ggplot(aes(x = CALL_VOLUME, y = FTE_NORM, label = SEGMENT)) +
+  ggplot(aes(x = CALL_VOLUME, y = COST, label = SEGMENT)) +
     geom_point(aes(size = FTE), colour = "blue") +
     geom_label_repel(aes(label = SEGMENT),
                   box.padding   = 0.2, 
@@ -239,13 +254,17 @@ t_call_times %>%
     #coord_cartesian(ylim = c(0, 4.5)) +
     labs(
       x = "Calls (Monthly Average)",
-    y = "Normalized FTE (FTE for 1000 calls)",
+    y = "Cost (Normalized FTE for 1000 calls)",
     title = "FTE Impact Map of Calls"
     )
 ```
 
 
-## 4.2. Understanding the Root-Causes of FTE comsumption
+## 4.2. Understand the Root-Causes of FTE comsumption
+
+The FTE of each process can be broken by call type. Call type is the service or solution provided in the call for the customer carried out in the call.
+
+Note the other category can broken down for further call types if neccessary.
 
 ```{r, fig.width=14, fig.height=14}
 t_call_times %>%
@@ -264,14 +283,15 @@ t_call_times %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
   mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
-         FTE_NORM = FTE/CALL_VOLUME*1000) %>%
+         COST = FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
   group_by(SEGMENT, ACTIVITY_EN) %>% 
   summarize(
             CALL_VOLUME = mean(CALL_VOLUME),
             FTE = mean(FTE),
-            FTE_NORM = mean(FTE_NORM)) %>% 
+            COST = mean(COST)) %>% 
   tidyr::gather(-SEGMENT, -ACTIVITY_EN, key = METRIC, value = VALUE) %>% 
+  mutate(METRIC = factor(METRIC, levels = c("CALL_VOLUME", "FTE", "COST"))) %>% 
   # Plot
   ggplot(aes(x = ACTIVITY_EN, y = VALUE)) +
     geom_bar(stat = "identity") +
