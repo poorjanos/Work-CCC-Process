@@ -83,7 +83,11 @@ t_call_times[t_call_times$CASE_TYPE_EN == "Claim report" &
 t_mnap <- t_mnap %>% mutate(IDOSZAK = ymd_hms(IDOSZAK))
 ```
 
-# 1. Glossary
+# 1. Introduction and Glossary
+
+Incoming calls represent the biggest workload of the Contact Center. This analysis provides insights to the amount of human resources spent on incoming calls by connecting call duration data (from TCT) with process-specific metainformaton (from Kontakt).
+
+Glossary of terms:  
 
 * Call Volume: number of calls in period
 * FTE: Full-time-equivalent computed for one month
@@ -262,7 +266,7 @@ t_call_times %>%
 
 ## 4.2. Understand the Root-Causes of FTE comsumption
 
-The FTE of each process can be broken by call type. Call type is the service or solution provided in the call for the customer carried out in the call.
+The FTE of each process can be broken by call type. Call type is the service or solution provided for the customer in the call.
 
 Note the other category can broken down for further call types if neccessary.
 

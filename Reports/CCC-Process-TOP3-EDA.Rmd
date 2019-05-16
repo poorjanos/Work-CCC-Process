@@ -1,7 +1,7 @@
 ---
 title: "Contact Center: Top 3 Requests Overview"
 author: "János Poór"
-date: 'May 10, 2019'
+date: 'May 17, 2019'
 output: rmdformats::readthedown
 ---
 
@@ -32,29 +32,42 @@ t_ccc_pa <- t_ccc_pa %>%
 t_mnap <- t_mnap %>% mutate(IDOSZAK = ymd_hms(IDOSZAK))
 
 t_ccc_pa[t_ccc_pa$CASE_TYPE_EN == "Delete contract", "CASE_TYPE_EN"] <- "Contract termination"
+
 t_ccc_pa[t_ccc_pa$CASE_TYPE_EN == "Claim report" &
-           t_ccc_pa$ACTIVITY_EN == "Provide information", "ACTIVITY_EN"] <- "Provide information Claim"
+  t_ccc_pa$ACTIVITY_EN %in% c("Provide information Property assignments", "Provide information Motor vehicle claim report", "Provide information") &
+  startsWith(t_ccc_pa$CASE_ID, "S"), "ACTIVITY_EN"] <- "Provide information claim related"
+
+t_ccc_pa[t_ccc_pa$CASE_TYPE_EN == "Claim report" &
+  t_ccc_pa$ACTIVITY_EN %in% c("Provide information Property assignments", "Provide information Motor vehicle claim report", "Provide information") &
+  startsWith(t_ccc_pa$CASE_ID, "K"), "ACTIVITY_EN"] <- "Provide information on claim file"
 ```
 
-# Introduction
+# 1. Introduction and Glossary
 
-The Contact Center identified three major request types at the expert sessions on 5 March:  
+The last expert session defined three major request types of interest: 
+
 * Claim report
 * Contract termination
 * Provide information
 
-The Advanced Analytics Team delivers:
-* Process maps further cleaned
-* etc
+> This analysis provides insights into the basic structure of the Contact Center interactions across the three major request types.
+
+Glossary of terms:  
+
+* Request (case): a single customer request that might have been answered via more than one Contact Center interaction
+* Interaction: a single Contact Center interaction (single touch on request) that may be of different channels (call, e-mail, public internet etc.)
+
+As of now exact interaction durations can only computed for calls that are analysed in a separate document (Call Center: Call Times and FTE)
 
 
-# Identify the Biggest Volumes
+# 2. Identify the Biggest Volumes
 
-## Number of Cases by Month
+## 2.1. Number of Requests and Interactions by Month
 
-Biggest volumes in
-* CAR contract termination
+Biggest interaction volumes in:  
+
 * HOUSE claim report
+* CAR contract termination
 
 
 ```{r}
@@ -84,7 +97,14 @@ t_ccc_pa %>%
   )
 ```
 
-## Number of Interactions
+## 2.2. Number of Interactions per a Single Request
+
+Requests handled by most interactions are:
+
+* CAR claim reports
+* LIFE contract terminations
+
+> Note: sheer interaction counts do not necessarily coincide with highest FTE consumption. FTE cosuption patterns are different for calls where exact FTE measures are availble (for further details see Call Center: Call Times and FTE analysis)
 
 ```{r}
 t_ccc_pa %>%
@@ -111,55 +131,8 @@ t_ccc_pa %>%
   )
 ```
 
-## Volume Map of Request Types
 
-```{r}
-t_ccc_pa %>%
-  # Transform data
-  filter(PRODUCT_LINE != "UNKNOWN") %>% 
-  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
-  group_by(CASE_ID, CASE_TYPE_EN, PRODUCT_LINE) %>%
-  mutate(CASE_START_MONTH = min(EVENT_MONTH)) %>%
-  ungroup() %>%
-  group_by(CASE_START_MONTH, CASE_TYPE_EN, PRODUCT_LINE) %>%
-  summarize(Requests = n_distinct(CASE_ID),
-            Interactions = n()) %>%
-  ungroup() %>%
-  mutate(EVENT_PER_CASE = Interactions/Requests,
-         SEGMENT = paste(PRODUCT_LINE, CASE_TYPE_EN)) %>%
-  group_by(SEGMENT) %>%
-  summarize(Requests = mean(Requests),
-            Interactions = mean(Interactions),
-            EVENTS_PER_CASE = mean(EVENT_PER_CASE)) %>% 
-  ungroup() %>% 
-  # Plot
-  ggplot(aes(x = Requests, y = EVENTS_PER_CASE, label = SEGMENT)) +
-    geom_point(aes(size = Interactions), colour = "blue") +
-    geom_label_repel(aes(label = SEGMENT),
-                  box.padding   = 0.35, 
-                  point.padding = 0.5,
-                  segment.color = 'grey50') +
-    coord_cartesian(ylim = c(0, 4.5)) +
-    labs(
-      x = "Requests (Monthly Average)",
-    y = "Interactions per Request (Monthly Average)",
-    title = "Volume Map of Major Request Types"
-    )
-```
-
-## Channel Map of Request Types
-
-
-```{r}
-t_ccc_pa %>%
-  # Transform data
-  filter(PRODUCT_LINE != "UNKNOWN") %>% 
-  filter(EVENT_CHANNEL == "CALL") %>% 
-  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
-  group_by(EVENT_MONTH) %>% 
-  tally()
-```
-
+## 2.3. Channel Map of Request Types
 
 ```{r}
 t_ccc_pa %>%
@@ -186,7 +159,7 @@ t_ccc_pa %>%
     theme(axis.text.x = element_text(angle = 90)) +
     #scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
     coord_flip() +
-    facet_grid(PRODUCT_LINE ~ CASE_TYPE_EN) +
+    facet_grid(CASE_TYPE_EN ~ PRODUCT_LINE, labeller = label_wrap_gen(width=10)) +
     labs(
       x = "Channel",
     y = "Interactions (Monthly Average)",
@@ -196,9 +169,16 @@ t_ccc_pa %>%
 
 ***
 
-# Understanding Interactions
+# 3. Understanding Interactions
 
-## General view
+## 3.1. Major Interaction Types
+
+Interactions can be broked down by type. Interaction type is the service or solution provided for the customer in the call.
+
+The graph provides two insights:  
+
+* High volume of the "Other" is due to the large number of wrap-up tree leaves operators can log onto the interaction. The large number of available options result in many small fequency categories that are put into the "Other" category
+* The interaction type with the highest frequency is the "Internal traffic activity" that combines all internal, logistic activities done on the request. These interactions do not give direct value to the customer, but are the result of the manual toggling of the workflow.
 
 ```{r}
 t_ccc_pa %>%
@@ -210,26 +190,29 @@ t_ccc_pa %>%
     ACTIVITY_EN %in% c("Transmission", "Forward activity") ~ "Internal traffic activity",
     TRUE ~ ACTIVITY_EN
   )) %>%
-  mutate(ACTIVITY_EN = forcats::fct_lump(factor(ACTIVITY_EN), n = 15)) %>%
+  mutate(ACTIVITY_EN = forcats::fct_lump(factor(ACTIVITY_EN), n = 20)) %>%
   group_by(ACTIVITY_EN, EVENT_MONTH) %>% 
   summarize(COUNT = n()) %>% 
   ungroup() %>% 
   group_by(ACTIVITY_EN) %>% 
   summarize(COUNT = mean(COUNT)) %>% 
   ungroup() %>% 
+  mutate(ACTIVITY_EN = forcats::fct_reorder(ACTIVITY_EN, COUNT, sum)) %>% 
+  mutate(ACTIVITY_EN = forcats::fct_relevel(ACTIVITY_EN, "Other", "Internal traffic activity")) %>% 
   # Plor
-  ggplot(aes(x = factor(ACTIVITY_EN, levels = unique(ACTIVITY_EN[order(COUNT)])), y = COUNT)) +
+  #ggplot(aes(x = factor(ACTIVITY_EN, levels = unique(ACTIVITY_EN[order(COUNT)])), y = COUNT)) +
+  ggplot(aes(x =ACTIVITY_EN, y = COUNT)) +
     geom_bar(stat = "identity") +
     scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
     coord_flip() +
     labs(
       x = "Activity",
-      y = "# of Activity (Monthly Average)",
-      title = "Major Activity Types"
+      y = "# of Interactions (Monthly Average)",
+      title = "Major Interaction Types"
     )
 ```
 
-## View by Channel
+## 3.2. Interaction Types by Channel
 
 ```{r}
 t_ccc_pa %>%
@@ -241,7 +224,6 @@ t_ccc_pa %>%
     ACTIVITY_EN %in% c("Transmission", "Forward activity") ~ "Internal traffic activity",
     TRUE ~ ACTIVITY_EN
   )) %>%
-  filter(ACTIVITY_EN != "Internal traffic activity") %>% 
   mutate(ACTIVITY_EN = forcats::fct_lump(factor(ACTIVITY_EN), n = 12)) %>%
   group_by(EVENT_CHANNEL, ACTIVITY_EN, EVENT_MONTH) %>% 
   summarize(COUNT = n()) %>% 
@@ -249,21 +231,23 @@ t_ccc_pa %>%
   group_by(EVENT_CHANNEL, ACTIVITY_EN) %>% 
   summarize(COUNT = mean(COUNT)) %>% 
   ungroup() %>% 
+  mutate(ACTIVITY_EN = forcats::fct_reorder(ACTIVITY_EN, COUNT, sum)) %>% 
+  mutate(ACTIVITY_EN = forcats::fct_relevel(ACTIVITY_EN, "Other", "Internal traffic activity")) %>% 
   # Plor
-  ggplot(aes(x = factor(ACTIVITY_EN, levels = unique(ACTIVITY_EN[order(ACTIVITY_EN, decreasing = TRUE)])), y = COUNT)) +
+  ggplot(aes(x = ACTIVITY_EN, y = COUNT)) +
     geom_bar(stat = "identity") +
     theme(axis.text.x = element_text(angle = 90)) +
     #scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
     coord_flip() +
     facet_grid(.~EVENT_CHANNEL) +
     labs(
-      x = "Interaction type (Activity)",
+      x = "Interaction type",
       y = "# of Interactions (Monthly Average)",
-      title = "Major Interaction Types by Channel\n(Excluding internal transmissions)"
+      title = "Major Interaction Types by Channel"
     )
 ```
 
-## Interactions by Channel
+## 3.3. Interactions by Channel and Process
 
 ```{r, fig.width=14, fig.height=14}
 t_ccc_pa %>%
@@ -277,23 +261,23 @@ t_ccc_pa %>%
     TRUE ~ ACTIVITY_EN
   )) %>%
   mutate(ACTIVITY_EN = forcats::fct_lump(factor(ACTIVITY_EN), n = 12)) %>%
-  # Filter out non-value adding or non-specific activities
-  filter(!ACTIVITY_EN %in% c("Internal traffic activity", "Other")) %>% 
   group_by(SEGMENT, EVENT_CHANNEL, ACTIVITY_EN, EVENT_MONTH) %>% 
   summarize(COUNT = n()) %>% 
   ungroup() %>% 
   group_by(SEGMENT, ACTIVITY_EN, EVENT_CHANNEL) %>% 
   summarize(COUNT = mean(COUNT)) %>% 
   ungroup() %>% 
+  mutate(ACTIVITY_EN = forcats::fct_reorder(ACTIVITY_EN, COUNT, sum)) %>% 
+  mutate(ACTIVITY_EN = forcats::fct_relevel(ACTIVITY_EN, "Other", "Internal traffic activity")) %>% 
   # Plor
-  ggplot(aes(x = factor(ACTIVITY_EN, levels = unique(ACTIVITY_EN[order(ACTIVITY_EN)])), y = COUNT)) +
+  ggplot(aes(x = ACTIVITY_EN, y = COUNT)) +
     geom_bar(stat = "identity") +
     scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
     coord_flip() +
     facet_grid(SEGMENT~EVENT_CHANNEL, labeller = label_wrap_gen(width=10)) +
     labs(
-      x = "Activity",
-      y = "# of Activity (Monthly Average)",
-      title = "Major Activity Types"
+      x = "Interaction type",
+      y = "# of Interactions (Monthly Average)",
+      title = "Major Interaction Types"
     ) 
 ```
