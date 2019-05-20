@@ -84,7 +84,9 @@ AS
               product_code,
               attrib1,
               attrib1eng,
-              call_time
+              call_time,
+              rtime as speak_time,
+              call_time-rtime as wrapup_time
        FROM   MESTERR.EXPORT_PA_WFLOG5
       WHERE   call_time > 0                             --and hun1 is not null
                            AND wflog_user LIKE 'CCC/%'
