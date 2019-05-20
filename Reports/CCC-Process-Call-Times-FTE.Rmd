@@ -266,6 +266,8 @@ t_call_times %>%
 
 ## 4.2. Understand the Root-Causes of FTE comsumption
 
+### 4.2.1. Understand the Root-Causes of FTE comsumption
+
 The FTE of each process can be broken by call type. Call type is the service or solution provided for the customer in the call.
 
 Note the other category can broken down for further call types if neccessary.
@@ -308,4 +310,64 @@ t_call_times %>%
     title = "Call Types Comparison"
     )
 ```
+
+### 4.2.2. Show Request Types with Highest Wrap-up FTE
+
+Total FTE can be broken down to  
+
+* speak-time FTE
+* wrap-up FTE
+
+> 29% of FTE is spent on wrap-ups. 
+
+
+```{r}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN",
+         EVENT_END >= as.Date('2018-01-01')) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13, other_level = "Everything else")) %>%
+  group_by(EVENT_MONTH,  SEGMENT) %>%
+  summarize(
+        CALL_VOLUME = n(),
+        CALL_TIME_SEC = sum(CALL_TIME),
+        SPEAK_TIME_SEC = sum(SPEAK_TIME),
+        WRAPUP_TIME_SEC = sum(WRAPUP_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(
+    FTE = CALL_TIME_SEC/60/60/7/MNAP,
+    COST = FTE/CALL_VOLUME*1000,
+    SPEAK_FTE = SPEAK_TIME_SEC/60/60/7/MNAP,
+    SPEAK_COST = SPEAK_FTE/CALL_VOLUME*1000,
+    WRAPUP_FTE = WRAPUP_TIME_SEC/60/60/7/MNAP,
+    WRAPUP_COST = WRAPUP_FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(SEGMENT) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            COST = mean(COST),
+            SPEAK_FTE = mean(SPEAK_FTE),
+            SPEAK_COST = mean(SPEAK_COST),
+            WRAPUP_FTE = mean(WRAPUP_FTE),
+            WRAPUP_COST = mean(WRAPUP_COST)) %>% 
+  ungroup() %>% 
+  mutate(WRAPUP_RATIO = WRAPUP_FTE/FTE) %>% 
+  mutate(SEGMENT = forcats::fct_reorder(SEGMENT, WRAPUP_RATIO, sum)) %>% 
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, "Everything else")) %>% 
+  # Plot
+  ggplot(aes(x = SEGMENT, y = WRAPUP_RATIO)) +
+    geom_bar(stat = "identity") +
+    scale_y_continuous(label = percent) +
+    coord_flip() +
+    labs(
+      x = "Request Type",
+    y = "Ratio of Wrap-up FTE to Total FTE",
+    title = "Proprotion of FTE Spent on Wrap-up"
+    )
+```
+
 
