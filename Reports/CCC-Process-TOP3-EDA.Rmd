@@ -281,3 +281,45 @@ t_ccc_pa %>%
       title = "Major Interaction Types"
     ) 
 ```
+
+
+## 3.4. Interactions of Most Impactful Processes
+
+```{r}
+t_ccc_pa %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN",
+         EVENT_END >= as.Date('2018-01-01')) %>%
+  mutate(
+    SEGMENT = paste(CASE_TYPE_EN, PRODUCT_LINE),
+    EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+    ACTIVITY_EN = case_when(
+    ACTIVITY_EN %in% c("Transmission", "Forward activity") ~ "Manual logistic",
+    TRUE ~ "Value-adding"
+  )) %>%
+  filter(SEGMENT %in% c('Claim report HOUSE', 'Claim report CAR', 'Provide information CAR', 'Provide information HOUSE')) %>%
+  filter(EVENT_CHANNEL != "CALL") %>% 
+  group_by(SEGMENT, EVENT_MONTH, ACTIVITY_EN) %>% 
+  summarize(COUNT = n(),
+            COUNT_DISTINCT = n_distinct(CASE_ID)) %>% 
+  ungroup() %>% 
+  group_by(SEGMENT, ACTIVITY_EN) %>% 
+  summarize(COUNT = mean(COUNT),
+            COUNT_DISTINCT = mean(COUNT_DISTINCT)) %>% 
+  ungroup() %>% 
+  mutate(INT_PER_REQ = COUNT/COUNT_DISTINCT) %>% 
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Claim report HOUSE', 'Claim report CAR',
+                                        'Provide information CAR', 'Provide information HOUSE')) %>% 
+  # Plor
+  ggplot(aes(x = ACTIVITY_EN, y = COUNT)) +
+    geom_bar(stat = "identity") +
+    #scale_y_continuous(label = unit_format(unit = "K", scale = 1e-3)) +
+    #coord_flip() +
+    facet_grid(. ~ SEGMENT, labeller = label_wrap_gen(width=10)) +
+     theme(axis.text.x = element_text(angle = 90)) +
+    labs(
+      x = "Interaction category",
+      y = "# of Interactions (Monthly Average)",
+      title = "Non-call Interactions"
+    ) 
+```

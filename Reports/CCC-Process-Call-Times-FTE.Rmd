@@ -79,6 +79,8 @@ t_call_times[t_call_times$CASE_TYPE_EN == "Claim report" &
   t_call_times$ACTIVITY_EN %in% c("Provide information Property assignments", "Provide information Motor vehicle claim report") &
   startsWith(t_call_times$CASE_ID, "K"), "ACTIVITY_EN"] <- "Provide information on claim file"
 
+t_call_times[t_call_times$ACTIVITY_EN %in%
+               c("Request claim recording", "Claim report (request inspection)"), "ACTIVITY_EN"] <- "Report claim"
 
 t_mnap <- t_mnap %>% mutate(IDOSZAK = ymd_hms(IDOSZAK))
 ```
@@ -227,7 +229,7 @@ The impact map represents FTE consumption by ball-size. Additionally it gives in
 
 > A business case can target either of the above factors.
 
-```{r}
+```{r, include = FALSE}
 t_call_times %>%
   # Transform data
   filter(PRODUCT_LINE != "UNKNOWN",
@@ -262,6 +264,44 @@ t_call_times %>%
     title = "FTE Impact Map of Calls"
     )
 ```
+
+```{r, include = TRUE}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN",
+         EVENT_END >= as.Date('2018-01-01')) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 8, other_level = "Everything else")) %>%
+  group_by(EVENT_MONTH,  SEGMENT) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         COST = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(SEGMENT) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            COST = mean(COST)) %>%
+  filter(SEGMENT != "Everything else") %>% 
+  # Plot
+  ggplot(aes(x = CALL_VOLUME, y = COST, label = SEGMENT)) +
+    geom_point(aes(size = FTE), colour = "blue") +
+    geom_label_repel(aes(label = SEGMENT),
+                  box.padding   = 0.1, 
+                  point.padding = 0.6,
+                  segment.color = 'grey50') +
+    #coord_cartesian(ylim = c(0, 4.5)) +
+    labs(
+      x = "Calls (Monthly Average)",
+    y = "Cost per Call (Normalized FTE)",
+    title = "Impact Map of Processes"
+    )
+```
+
 
 
 ## 4.2. Understand the Root-Causes of FTE comsumption
@@ -311,7 +351,58 @@ t_call_times %>%
     )
 ```
 
-### 4.2.2. Show Request Types with Highest Wrap-up FTE
+
+### 4.2.2. Compare FTE of Processes with Biggest Impact
+
+```{r, fig.width=10}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN",
+         EVENT_END >= as.Date('2018-01-01')) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13)) %>%
+  group_by(EVENT_MONTH, SEGMENT) %>% 
+  mutate(ACTIVITY_EN = as.character(forcats::fct_lump(ACTIVITY_EN, prop = 0.05))) %>% 
+  ungroup() %>% 
+  group_by(EVENT_MONTH, SEGMENT, ACTIVITY_EN) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         COST = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(SEGMENT, ACTIVITY_EN) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            COST = mean(COST)) %>%
+  ungroup() %>% 
+  filter(SEGMENT %in% c('Claim report HOUSE', 'Claim report CAR', 'Provide information CAR', 'Provide information HOUSE')) %>% 
+  select(SEGMENT, ACTIVITY_EN, FTE) %>% 
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Claim report HOUSE', 'Claim report CAR',
+                                        'Provide information CAR', 'Provide information HOUSE')) %>%
+  mutate(ACTIVITY_EN = forcats::fct_reorder(ACTIVITY_EN, FTE, sum)) %>% 
+  mutate(ACTIVITY_EN = forcats::fct_relevel(ACTIVITY_EN, "Other")) %>% 
+  #tidyr::gather(-SEGMENT, -ACTIVITY_EN, key = METRIC, value = VALUE) %>% 
+  #mutate(METRIC = factor(METRIC, levels = c("CALL_VOLUME", "FTE", "COST"))) %>% 
+  # Plot
+  ggplot(aes(x = ACTIVITY_EN, y = FTE)) +
+    geom_bar(stat = "identity") +
+    theme(strip.text.y = element_text(angle=0)) +
+    coord_flip() +
+    facet_grid(.~SEGMENT, labeller = label_wrap_gen(width=10)) +
+    labs(
+      x = "Call types",
+    y = "FTE",
+    title = "Call Types Comparison"
+    )
+```
+
+
+
+### 4.2.3. Show Request Types with Highest Wrap-up FTE
 
 Total FTE can be broken down to  
 
@@ -371,3 +462,32 @@ t_call_times %>%
 ```
 
 
+### 4.2.4. Call per request
+
+```{r}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN",
+         EVENT_END >= as.Date('2018-01-01')) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13, other_level = "Everything else")) %>%
+  group_by(EVENT_MONTH,  SEGMENT, CASE_ID) %>%
+  summarize(
+        CALL_VOLUME = n()) %>%
+  ungroup() %>%
+  group_by(SEGMENT) %>% 
+  summarize(CALL_PER_REQUEST = mean(CALL_VOLUME)) %>% 
+  ungroup() %>% 
+  mutate(SEGMENT = forcats::fct_reorder(SEGMENT, CALL_PER_REQUEST, sum)) %>% 
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, "Everything else")) %>% 
+  # Plot
+  ggplot(aes(x = SEGMENT, y = CALL_PER_REQUEST)) +
+    geom_bar(stat = "identity") +
+    coord_flip(ylim = c(1, 1.5)) +
+    labs(
+      x = "Request Type",
+    y = "Calls per Request",
+    title = "Average Number of Calls on a Single Request"
+    )
+```

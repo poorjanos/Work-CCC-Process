@@ -54,6 +54,8 @@ dbDisconnect(jdbcConnection)
 # Concat media and activity -------------------------------------------------------------
 # Concat variables
 t_ccc_pa_PG_export <- t_ccc_pa_raw %>%
+  mutate(EVENT_CHANNEL = case_when(EVENT_CHANNEL == "CALL" ~ "CALL",
+                                   TRUE ~ "NON-CALL")) %>% 
   mutate(ACTIVITY_COMB_EN = paste(EVENT_CHANNEL, ACTIVITY_EN)) %>%
   replace_na(list(PRODUCT_LINE = "UNKNOWN", PRODUCT_CODE = "UNKNOWN")) %>%
   select(CASE_ID, EVENT_END, ACTIVITY_COMB_EN, ACTIVITY_EN, EVENT_CHANNEL,
