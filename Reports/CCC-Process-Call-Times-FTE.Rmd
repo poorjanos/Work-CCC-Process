@@ -302,6 +302,79 @@ t_call_times %>%
     )
 ```
 
+```{r, include = FALSE}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN",
+         EVENT_END >= as.Date('2018-01-01')) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 8, other_level = "Everything else")) %>%
+  group_by(EVENT_MONTH,  SEGMENT) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         COST = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(SEGMENT) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            COST = mean(COST)) %>%
+  filter(SEGMENT != "Everything else") %>% 
+  # Plot
+  ggplot(aes(x = CALL_VOLUME, y = FTE, label = SEGMENT)) +
+    geom_point(aes(size = COST), colour = "blue") +
+    geom_label_repel(aes(label = SEGMENT),
+                  box.padding   = 0.1, 
+                  point.padding = 0.6,
+                  segment.color = 'grey50') +
+    #coord_cartesian(ylim = c(0, 4.5)) +
+    labs(
+      x = "Calls (Monthly Average)",
+    y = "FTE",
+    title = "Impact Map of Processes"
+    )
+```
+
+```{r, include = FALSE}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN",
+         EVENT_END >= as.Date('2018-01-01')) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 8, other_level = "Everything else")) %>%
+  group_by(EVENT_MONTH,  SEGMENT) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         COST = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(SEGMENT) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            COST = mean(COST)) %>%
+  filter(SEGMENT != "Everything else") %>% 
+  # Plot
+  ggplot(aes(x = FTE, y = COST, label = SEGMENT)) +
+    geom_point(aes(size = CALL_VOLUME), colour = "blue") +
+    geom_label_repel(aes(label = SEGMENT),
+                  box.padding   = 0.1, 
+                  point.padding = 0.6,
+                  segment.color = 'grey50') +
+    #coord_cartesian(ylim = c(0, 4.5)) +
+    labs(
+      x = "FTE",
+    y = "Cost",
+    title = "Impact Map of Processes"
+    )
+```
 
 
 ## 4.2. Understand the Root-Causes of FTE comsumption
