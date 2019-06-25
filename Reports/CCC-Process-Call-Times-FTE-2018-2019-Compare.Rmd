@@ -128,90 +128,45 @@ t_call_times %>%
 
 ***
 
-# 3. Understanding FTE across Request Types & Products
-
-## 3.1. Breakdown of Volumes and FTE across Request Types
+#3. Monthly Trends
 
 ```{r, fig.width=14, fig.height=10}
 t_call_times %>%
   # Transform data
-  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
+  filter(PRODUCT_LINE != 'LIFE') %>% 
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
-         EVENT_QUARTER = paste0(year(EVENT_END), " q", quarter(EVENT_END)), 
-         CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
-         SEGMENT = CASE_TYPE_EN) %>%
-  group_by(EVENT_MONTH, EVENT_QUARTER, SEGMENT) %>%
-  summarize(CALL_VOLUME = n(),
-            CALL_TIME_SEC = sum(CALL_TIME)) %>%
-  ungroup() %>%
-  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
-  group_by(EVENT_QUARTER, SEGMENT) %>% 
-  summarize(CALL_VOLUME = sum(CALL_VOLUME),
-            CALL_TIME_SEC = sum(CALL_TIME_SEC),
-            MNAP = sum(MNAP)) %>% 
-  ungroup() %>% 
-  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
-         COST = FTE*3/CALL_VOLUME*1000) %>%
-  select(EVENT_QUARTER, SEGMENT, CALL_VOLUME, FTE, COST) %>% 
-  tidyr::gather(key = METRIC, value = VALUE, -EVENT_QUARTER, -SEGMENT) %>% 
-  mutate(METRIC = factor(METRIC, levels = c("CALL_VOLUME", "FTE", "COST"))) %>% 
-  # Plot
-  ggplot(aes(x = substr(as.character(EVENT_QUARTER), 1, 7), y = VALUE, group = 1)) +
-  geom_line() +
-  theme(axis.text.x = element_text(angle = 90),
-        strip.text.x = element_text(angle=90),
-        strip.text.y = element_text(angle=0)) +
-  facet_grid(METRIC~SEGMENT, scales = "free") +
-  labs(
-    x = "Month",
-    y = "Value",
-    title = "Call Volumes and FTE by Request Types (Quarterly Trends)"
-  )
-```
-
-
-## 3.2. Breakdown of Volumes and FTE across Request Types & Products
-
-```{r, fig.width=14, fig.height=10}
-t_call_times %>%
-  # Transform data
-  filter(PRODUCT_LINE != "UNKNOWN") %>% 
-  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
-         EVENT_QUARTER = paste0(year(EVENT_END), " q", quarter(EVENT_END)), 
          CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
          SEGMENT = paste(CASE_TYPE_EN, PRODUCT_LINE)) %>%
-  group_by(EVENT_MONTH, EVENT_QUARTER, SEGMENT) %>%
+  group_by(EVENT_MONTH, SEGMENT) %>%
   summarize(CALL_VOLUME = n(),
             CALL_TIME_SEC = sum(CALL_TIME)) %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
-  group_by(EVENT_QUARTER, SEGMENT) %>% 
+  group_by(EVENT_MONTH, SEGMENT) %>% 
   summarize(CALL_VOLUME = sum(CALL_VOLUME),
             CALL_TIME_SEC = sum(CALL_TIME_SEC),
             MNAP = sum(MNAP)) %>% 
   ungroup() %>% 
   mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
-         COST = FTE*3/CALL_VOLUME*1000) %>%
-  select(EVENT_QUARTER, SEGMENT, CALL_VOLUME, FTE, COST) %>% 
-  tidyr::gather(key = METRIC, value = VALUE, -EVENT_QUARTER, -SEGMENT) %>% 
-  mutate(METRIC = factor(METRIC, levels = c("CALL_VOLUME", "FTE", "COST"))) %>% 
+         COST = FTE/CALL_VOLUME*1000) %>%
+  select(EVENT_MONTH, SEGMENT, CALL_VOLUME, FTE, COST) %>% 
+  tidyr::gather(key = METRIC, value = VALUE, -EVENT_MONTH, -SEGMENT) %>% 
+  mutate(METRIC = factor(METRIC, levels = c("CALL_VOLUME", "FTE", "COST"))) %>%
+  #filter(SEGMENT == "Claim report HOUSE") %>% 
   # Plot
-  ggplot(aes(x = substr(as.character(EVENT_QUARTER), 1, 7), y = VALUE, group = 1)) +
+  ggplot(aes(x = substr(as.character(EVENT_MONTH), 1, 7), y = VALUE, group = 1)) +
   geom_line() +
-  theme(axis.text.x = element_text(angle = 90, size = 6),
+  theme(axis.text.x = element_text(angle = 90, size = 10),
         strip.text.x = element_text(angle=90),
         strip.text.y = element_text(angle=0)) +
   facet_grid(METRIC~SEGMENT, scales = "free") +
   labs(
     x = "Month",
     y = "Value",
-    title = "Call Volumes and FTE by Request Types and Product (Quarterly Trends)"
+    title = "Call Volumes and FTE by Request Types and Product"
   )
 ```
-
-***
-
-
 # 4. FTE Impact Map
 
 
@@ -265,15 +220,19 @@ t_call_times %>%
     )
 ```
 
-```{r, include = TRUE}
+```{r, include = TRUE, fig.width=12}
 t_call_times %>%
   # Transform data
-  filter(PRODUCT_LINE != "UNKNOWN",
-         EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2019-06-01')) %>% 
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  filter(
+    (EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2018-06-01')) |
+    (EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01'))
+         ) %>%
+  mutate(YEAR = lubridate::year(EVENT_END)) %>% 
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
          #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
          SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 8, other_level = "Everything else")) %>%
-  group_by(EVENT_MONTH,  SEGMENT) %>%
+  group_by(YEAR, EVENT_MONTH,  SEGMENT) %>%
   summarize(CALL_VOLUME = n(),
             CALL_TIME_SEC = sum(CALL_TIME)) %>%
   ungroup() %>%
@@ -281,7 +240,7 @@ t_call_times %>%
   mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
          COST = FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
-  group_by(SEGMENT) %>% 
+  group_by(YEAR, SEGMENT) %>% 
   summarize(
             CALL_VOLUME = mean(CALL_VOLUME),
             FTE = mean(FTE),
@@ -294,6 +253,7 @@ t_call_times %>%
                   box.padding   = 0.1, 
                   point.padding = 0.6,
                   segment.color = 'grey50') +
+    facet_grid(.~YEAR) +
     #coord_cartesian(ylim = c(0, 4.5)) +
     labs(
       x = "Calls (Monthly Average)",

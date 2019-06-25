@@ -87,13 +87,14 @@ AS
        FROM   MESTERR.EXPORT_PA_WFLOG5
       WHERE   call_time > 0                             --and hun1 is not null
                            AND wflog_user LIKE 'CCC/%'
-              AND f_paid IN
-                       (SELECT   f_paid
-                          FROM   (  SELECT   f_paid, MIN (f_idopont) AS idopont
-                                      FROM   MESTERR.EXPORT_PA_WFLOG5
-                                  GROUP BY   f_paid)
-                         WHERE   idopont BETWEEN DATE '2019-01-01'
-                                             AND  DATE '2019-06-01')
+                           AND f_idopont between date '2019-01-01' and date '2019-06-01'
+--              AND f_paid IN
+--                       (SELECT   f_paid
+--                          FROM   (  SELECT   f_paid, MIN (f_idopont) AS idopont
+--                                      FROM   MESTERR.EXPORT_PA_WFLOG5
+--                                  GROUP BY   f_paid)
+--                         WHERE   idopont BETWEEN DATE '2019-01-01'
+--                                             AND  DATE '2019-06-01')
    ORDER BY   1, 2;
 
 COMMIT;
