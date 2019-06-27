@@ -143,3 +143,8 @@ UPDATE   t_call_times_2019
  WHERE   activity_en = 'Provide information';
 
 COMMIT;
+
+
+UPDATE t_call_times_2019
+set product_line = 'HOUSE' where product_line is null and attrib1 = 'Vagyon karbejelentes';
+COMMIT;
