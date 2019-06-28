@@ -1,5 +1,5 @@
 ---
-title: "Contact Center: Call Times and FTE"
+title: "Contact Center: Call Times and FTE 2018-2019 Comparison"
 author: "János Poór"
 date: "`r Sys.Date()`"
 output: rmdformats::readthedown
@@ -85,7 +85,8 @@ t_call_times[t_call_times$ACTIVITY_EN %in%
 t_mnap <- t_mnap %>% mutate(IDOSZAK = ymd_hms(IDOSZAK))
 ```
 
-# 1. Introduction and Glossary
+
+# 1. KPIs: Call Volumes, FTE and Cost
 
 Incoming calls represent the biggest workload of the Contact Center. This analysis provides insights to the amount of human resources spent on incoming calls by connecting call duration data (from TCT) with process-specific metainformaton (from Kontakt).
 
@@ -94,9 +95,6 @@ Glossary of terms:
 * Call Volume: number of calls in period
 * FTE: Full-time-equivalent computed for one month
 * Cost (per call): Normalized FTE - Full-time-equivalent computed for 1000 calls for one month
-
-
-# 2. Call Volumes and FTE
 
 ```{r}
 t_call_times %>%
@@ -129,12 +127,9 @@ t_call_times %>%
 ```
 
 
+<!-- ## 1.1. Trends by Request Type -->
 
-***
-
-#3. Monthly Trends
-
-```{r, fig.width=12}
+```{r, fig.width=12, include= FALSE}
 t_call_times %>%
   # Transform data
   filter(PRODUCT_LINE != "UNKNOWN") %>%
@@ -174,10 +169,11 @@ t_call_times %>%
     title = "Call Volumes and FTE by Request Types and Product"
   )
 ```
-# 4. FTE Impact Map
+
+***
 
 
-## 4.1. Impact Map: Identify Processes that Cosume Most FTE
+# 2. FTE Impact Map
 
 Gross FTE is the product of two factors: 
 
@@ -190,7 +186,6 @@ The impact map represents FTE consumption by ball-size. Additionally it gives in
 * Low call volume with high call per cost
 
 > A business case can target either of the above factors.
-
 
 ```{r, include = TRUE, fig.width=10}
 t_call_times %>%
@@ -238,7 +233,7 @@ t_call_times %>%
 ```
 
 
-#4.1.1. Differences 2018-2019
+## 2.1. Changes 2018-2019
 
 ```{r, include = TRUE, fig.width=10}
 # Define function to use tidyr::spread for multiple value columns
@@ -308,15 +303,16 @@ t_call_times %>%
   labs(
     x = "Call Type",
     y = "Rate of Change (%)",
-    title = "Changes from 2018 to 2019 (Jan-May)"
+    title = "KPIs: Change from 2018 to 2019 (Jan-May)"
   )
 ```
 
+***
 
 
-## 4.2. Understand the Root-Causes of FTE comsumption
+# 3. Root-Cause Analysis
 
-### 4.2.1. Understand the Root-Causes of FTE comsumption
+## 3.1. Call Types FTE
 
 The FTE of each process can be broken by call type. Call type is the service or solution provided for the customer in the call.
 
@@ -366,11 +362,11 @@ t_call_times %>%
     labs(
       x = "Call types",
     y = "FTE",
-    title = "Call Types Comparison"
+    title = "Call Types FTE Comparison"
     )
 ```
 
-### 4.2.2. Compare FTE of Processes with Biggest Impact
+### 3.1.2. Call Types FTE Change 2018-2019
 
 ```{r, fig.width=10}
 t_call_times %>%
@@ -422,20 +418,20 @@ t_call_times %>%
     labs(
       x = "Call types",
     y = "FTE Change Rate (%)",
-    title = "Call Types Comparison"
+    title = "Call Types FTE Change 2018-2019"
     )
 ```
 
 
 
-### 4.2.3. Show Request Types with Highest Wrap-up FTE
+## 3.2. Wrap-Up Analysis
 
 Total FTE can be broken down to  
 
 * speak-time FTE
 * wrap-up FTE
 
-> 29% of FTE is spent on wrap-ups. 
+> In 2019 31% of FTE is spent on wrap-ups. That is a 10% increase compared to 2018
 
 ```{r}
 t_call_times %>%
@@ -487,7 +483,7 @@ t_call_times %>%
     )
 ```
 
-
+### 3.2.1. Wrap-Up FTE Ratio by Request Type
 
 ```{r}
 t_call_times %>%
@@ -543,6 +539,7 @@ t_call_times %>%
     )
 ```
 
+### 3.2.2. Wrap-Up FTE Ratio Change 2018-2019
 
 ```{r}
 t_call_times %>%
@@ -594,30 +591,36 @@ t_call_times %>%
     scale_fill_manual(guide = FALSE, breaks = c(TRUE, FALSE), values = c("#FF6347", "#90EE90")) +
     scale_y_continuous(labels = percent) +
     geom_hline(yintercept = 0, colour = "#A9A9A9", linetype = "longdash") +
-    coord_flip(ylim = c(-0.5, 0.5)) +
+    coord_flip(ylim = c(-0.25, 0.25)) +
     labs(
-      x = "Request Type",
-    y = "Ratio of Wrap-up FTE to Total FTE",
-    title = "Proprotion of FTE Spent on Wrap-up"
+      x = "Request Type (in decreasing order of absolute wrap-up ratio)",
+    y = "Rate of Change (%)",
+    title = "Change of Wrap-up FTE Ratio 2018-2019"
     )
 ```
 
 
-### 4.2.4. Call per request
+## 3.3. Calls per Request
+
+### 3.3.1 Calls per Request by Request Type
 
 ```{r}
 t_call_times %>%
   # Transform data
-  filter(PRODUCT_LINE != "UNKNOWN",
-         EVENT_END >= as.Date('2018-01-01')) %>% 
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+   filter(
+    (EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2018-06-01')) |
+    (EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01'))
+         ) %>%
+  mutate(YEAR = lubridate::year(EVENT_END)) %>% 
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
          #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
          SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13, other_level = "Everything else")) %>%
-  group_by(EVENT_MONTH,  SEGMENT, CASE_ID) %>%
+  group_by(YEAR, EVENT_MONTH,  SEGMENT, CASE_ID) %>%
   summarize(
         CALL_VOLUME = n()) %>%
   ungroup() %>%
-  group_by(SEGMENT) %>% 
+  group_by(YEAR, SEGMENT) %>% 
   summarize(CALL_PER_REQUEST = mean(CALL_VOLUME)) %>% 
   ungroup() %>% 
   mutate(SEGMENT = forcats::fct_reorder(SEGMENT, CALL_PER_REQUEST, sum)) %>% 
@@ -626,9 +629,50 @@ t_call_times %>%
   ggplot(aes(x = SEGMENT, y = CALL_PER_REQUEST)) +
     geom_bar(stat = "identity") +
     coord_flip(ylim = c(1, 1.5)) +
+    facet_grid(YEAR~.) +
     labs(
       x = "Request Type",
     y = "Calls per Request",
     title = "Average Number of Calls on a Single Request"
+    )
+```
+
+
+### 3.3.2. Calls per Request Change 2018-2019
+
+```{r}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+   filter(
+    (EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2018-06-01')) |
+    (EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01'))
+         ) %>%
+  mutate(YEAR = lubridate::year(EVENT_END)) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13, other_level = "Everything else")) %>%
+  group_by(YEAR, EVENT_MONTH,  SEGMENT, CASE_ID) %>%
+  summarize(
+        CALL_VOLUME = n()) %>%
+  ungroup() %>%
+  group_by(YEAR, SEGMENT) %>% 
+  summarize(CALL_PER_REQUEST = mean(CALL_VOLUME)) %>% 
+  ungroup() %>% 
+  mutate(SEGMENT = forcats::fct_reorder(SEGMENT, CALL_PER_REQUEST, sum)) %>% 
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, "Everything else")) %>% 
+  myspread(YEAR, CALL_PER_REQUEST) %>% 
+  mutate(CALL_PER_REQUEST = CALL_PER_REQUEST_2019/CALL_PER_REQUEST_2018 - 1) %>% 
+  # Plot
+  ggplot(aes(x = SEGMENT, y = CALL_PER_REQUEST)) +
+    geom_bar(aes(fill = CALL_PER_REQUEST < 0), stat = "identity") +
+    scale_fill_manual(guide = FALSE, breaks = c(TRUE, FALSE), values = c("#FF6347", "#90EE90")) +
+    scale_y_continuous(labels = percent) +
+    geom_hline(yintercept = 0, colour = "#A9A9A9", linetype = "longdash") +
+    coord_flip(ylim = c(-0.10, 0.10)) +
+    labs(
+      x = "Rate of Change (%)",
+    y = "Ratio of Wrap-up FTE to Total FTE (in decreasing order of absolute num of calls per request)",
+    title = "Change of Calls per Request 2018-2019"
     )
 ```
