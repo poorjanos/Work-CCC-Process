@@ -1,7 +1,7 @@
 ---
 title: "CCC Wrap Ups - Prune Decision Trees"
 author: "János Poór"
-date: 'April 5, 2019'
+date: "`r Sys.Date()`"
 output: rmdformats::readthedown
 ---
 
@@ -16,6 +16,7 @@ library(ggplot2)
 library(lubridate)
 library(scales)
 library(tidyr)
+library(xlsx)
 ```
 
 ```{r, include=FALSE}
@@ -68,6 +69,7 @@ SELECT   intezkedes,
                                              AND f_wf IS NOT NULL
                                              AND intezkedes IS NOT NULL
                                              AND f_wf = '_CCC_Intézkedés'
+                                             AND YYYY >= date '2019-01-01'
                                   GROUP BY   mm,
                                              alirattipus,
                                              f_wf,
@@ -105,6 +107,7 @@ query_actions_per_doctype <- "
                                              AND f_wf IS NOT NULL
                                              AND intezkedes IS NOT NULL
                                              AND f_wf = '_CCC_Intézkedés'
+                                             AND YYYY >= date '2019-01-01'
                                   GROUP BY   mm,
                                              alirattipus,
                                              f_wf,
@@ -123,7 +126,7 @@ t_actions_doctype <- dbGetQuery(jdbcConnection, query_actions_per_doctype)
 dbDisconnect(jdbcConnection)
 ```
 
-# Distribution of Wrap Up Leaf Nodes in 2017-2018
+# 1. Distribution of Wrap Up Leaf Nodes in 2019
 
 Over half of the available leaf nodes are almost never used. Only about 10% of all leaf nodes are in frequent usage.
 
@@ -147,9 +150,9 @@ t_actions %>%
 ***
 
 
-# Wrap Up Leaf Nodes across Request Types
+# 2. Wrap Up Leaf Nodes across Request Types
 
-Total count of wrap-up leaf nodes is 532. There is great variance of the leaf node count across the 212 requeset types.
+Total count of distinct wrap-up leaf nodes is 405. 
 
 ```{r}
 t_actions_doctype %>% group_by(ALIRATTIPUS) %>%
@@ -171,9 +174,9 @@ ggplot(aes(x = factor(ALIRATTIPUS, levels = unique(ALIRATTIPUS[order(LEAF_NODE_C
 ***
 
 
-# Close-up on Occurance Distrubution 
+# 3. Close-up on Occurance Distrubution 
 
-511 of the 532 leaf nodes are used in less then 1% of cases.
+382 of the 405 leaf nodes are used in less then 1% of cases.
 
 ```{r}
 t_actions %>% 
@@ -194,11 +197,11 @@ t_actions %>%
 ***
 
 
-# Toplist of Least Used Leaf Nodes
+<!-- # Toplist of Least Used Leaf Nodes -->
 
-Least used trees defined as: maximum probablity of occurance less than 1% across all request types. 
+<!-- Least used trees defined as: maximum probablity of occurance less than 1% across all request types.  -->
 
-```{r}
+```{r, include = FALSE}
 knitr::kable(t_actions_doctype %>%
   group_by(INTEZKEDES) %>%
   summarize(
@@ -219,4 +222,64 @@ knitr::kable(t_actions_doctype %>%
     MEDIAN_OP = scales::percent(MEDIAN_OCCURANCE_PROB),
     MAX_OP = scales::percent(MAX_OCCURANCE_PROB)
   ), caption = "Toplist of Least Used Leaf Nodes Based on Occurance Probabilites (OP)")
+```
+
+
+
+# 4. Targeting Doctypes (Alirattipus) for Leaf Node Modification 
+
+Ranking is based on two factors: 
+
+* Density: number of leaf nodes at 90% of the cumulative distribution
+* Leaf_num: total number of available leaf nodes
+
+Additionally total frequency is displayed to identify high impact leaf nodes.
+
+```{r}
+t_density <- t_actions_doctype %>%
+  group_by(ALIRATTIPUS) %>%
+  filter(RUNNING_RATIO < 0.9) %>% 
+  summarize(DENSITY = n()) %>% 
+  ungroup()
+
+t_ranks <- t_actions_doctype %>%
+  group_by(ALIRATTIPUS) %>%
+  summarize(LEAF_NUM = length(ALIRATTIPUS),
+            FREQUENCY = sum(CNT)) %>% 
+  ungroup() %>% 
+  left_join(t_density, by = "ALIRATTIPUS") %>% 
+  filter(complete.cases(.)) %>% 
+  arrange(DENSITY, desc(LEAF_NUM)) %>% 
+  mutate(RANK = row_number()) %>% 
+  select(1,5,3,4,2)
+
+knitr::kable(t_ranks, caption = "Toplist of Doctypes (alirattipus) with Highest Leaf Node Concetration")
+```
+
+
+```{r}
+# Save xlsx
+attributes(t_actions_doctype)$class <- c("data.frame")
+attributes(t_ranks)$class <- c("data.frame")
+
+write.xlsx(
+  t_ranks,
+  here::here(
+    "Data",
+    "utomunka_alirattipus.xlsx"
+  ),
+  sheetName = "Toplista",
+  row.names = FALSE
+)
+
+write.xlsx(
+  t_actions_doctype,
+  here::here(
+    "Data",
+    "utomunka_alirattipus.xlsx"
+  ),
+  sheetName = "Intezkedes_fa",
+  row.names = FALSE,
+  append = TRUE
+)
 ```
