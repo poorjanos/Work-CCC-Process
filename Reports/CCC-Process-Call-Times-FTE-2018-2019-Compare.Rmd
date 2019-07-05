@@ -233,7 +233,7 @@ t_call_times %>%
 ```
 
 
-## 2.1. Changes 2018-2019
+## 2.1. Absolute KPI Change 2018-2019
 
 ```{r, include = TRUE, fig.width=10}
 # Define function to use tidyr::spread for multiple value columns
@@ -301,10 +301,54 @@ t_call_times %>%
   coord_flip(ylim = c(-0.5, 0.5)) +
   facet_grid(. ~ METRIC) +
   labs(
-    x = "Call Type",
+    x = "Contact Reason",
     y = "Rate of Change (%)",
-    title = "KPIs: Change from 2018 to 2019 (Jan-May)"
+    title = "KPIs: Absolute Change 2018-2019 (Jan-May)"
   )
+```
+
+
+## 2.2. Contact Reasons: Relative FTE Change 2018-2019
+
+```{r, include = TRUE}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
+  filter(
+    (EVENT_END >= as.Date("2018-01-01") & EVENT_END < as.Date("2018-06-01")) |
+      (EVENT_END >= as.Date("2019-01-01") & EVENT_END < as.Date("2019-06-01"))
+  ) %>%
+  mutate(YEAR = forcats::fct_rev(factor(as.character(lubridate::year(EVENT_END))))) %>%
+  mutate(
+    EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+    SEGMENT = forcats::fct_rev(forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 9, other_level = "Everything else"))
+  ) %>%
+  filter(SEGMENT != "Everything else") %>%
+  group_by(YEAR, EVENT_MONTH, SEGMENT) %>%
+  summarize(
+    CALL_VOLUME = n(),
+    CALL_TIME_SEC = sum(CALL_TIME)
+  ) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>%
+  mutate(FTE = CALL_TIME_SEC/ 60/ 60/ 7/ MNAP) %>% 
+  group_by(YEAR, SEGMENT) %>% 
+  summarize(FTE = mean(FTE)) %>% 
+  ungroup() %>% 
+  group_by(YEAR) %>% 
+  mutate(FTE_PCT = FTE/sum(FTE)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = SEGMENT, FTE_PCT, fill = YEAR)) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    geom_text(aes(label = paste(round(FTE_PCT*100, 2), "%")), position = position_dodge(width = 1), size = 3) +
+    scale_y_continuous(labels = percent) +
+    coord_flip() +
+    guides(fill = guide_legend(reverse = TRUE)) +
+    labs(
+      x = "Contact Reason",
+      y = "% of total FTE",
+      title = "Relative FTE Change 2018-2019"
+    )
 ```
 
 ***
@@ -330,6 +374,8 @@ t_call_times %>%
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
          #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
          SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13)) %>%
+  mutate(ACTIVITY_EN = case_when(ACTIVITY_EN == "Premium settlement" ~ "Provide information Premium settlement",
+                                 TRUE ~ ACTIVITY_EN)) %>% 
   group_by(YEAR, EVENT_MONTH, SEGMENT) %>% 
   mutate(ACTIVITY_EN = as.character(forcats::fct_lump(ACTIVITY_EN, prop = 0.05))) %>% 
   ungroup() %>% 
@@ -362,11 +408,12 @@ t_call_times %>%
     labs(
       x = "Call types",
     y = "FTE",
-    title = "Call Types FTE Comparison"
+    title = "Call Types: FTE Comparison 2018-2019"
     )
 ```
 
-### 3.1.2. Call Types FTE Change 2018-2019
+
+### 3.1.2. Call Types: Absolute FTE Change 2018-2019
 
 ```{r, fig.width=10}
 t_call_times %>%
@@ -380,6 +427,8 @@ t_call_times %>%
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
          #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
          SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13)) %>%
+  mutate(ACTIVITY_EN = case_when(ACTIVITY_EN == "Premium settlement" ~ "Provide information Premium settlement",
+                                 TRUE ~ ACTIVITY_EN)) %>% 
   group_by(YEAR, EVENT_MONTH, SEGMENT) %>% 
   mutate(ACTIVITY_EN = as.character(forcats::fct_lump(ACTIVITY_EN, prop = 0.05))) %>% 
   ungroup() %>% 
@@ -417,8 +466,67 @@ t_call_times %>%
     facet_grid(.~SEGMENT, labeller = label_wrap_gen(width=10)) +
     labs(
       x = "Call types",
-    y = "FTE Change Rate (%)",
-    title = "Call Types FTE Change 2018-2019"
+    y = "FTE Absolute Change Rate (%)",
+    title = "Call Types: Absolute FTE Change 2018-2019"
+    )
+```
+
+
+
+### 3.1.3. Call Types: Relative FTE Change 2018-2019
+
+```{r, fig.width=10}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
+  filter(
+    (EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2018-06-01')) |
+    (EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01'))
+         ) %>%
+  mutate(YEAR = forcats::fct_rev(factor(as.character(lubridate::year(EVENT_END))))) %>%
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 13)) %>%
+  mutate(ACTIVITY_EN = case_when(ACTIVITY_EN == "Premium settlement" ~ "Provide information Premium settlement",
+                                 TRUE ~ ACTIVITY_EN)) %>% 
+  group_by(YEAR, EVENT_MONTH, SEGMENT) %>% 
+  mutate(ACTIVITY_EN = as.character(forcats::fct_lump(ACTIVITY_EN, prop = 0.05))) %>% 
+  ungroup() %>% 
+  group_by(YEAR, EVENT_MONTH, SEGMENT, ACTIVITY_EN) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         COST = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(YEAR, SEGMENT, ACTIVITY_EN) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            COST = mean(COST)) %>%
+  ungroup() %>% 
+  group_by(YEAR, SEGMENT) %>% 
+  mutate(FTE_PCT = FTE/sum(FTE)) %>% 
+  ungroup() %>% 
+  filter(SEGMENT %in% c('Claim report HOUSE', 'Claim report CAR', 'Provide information CAR', 'Provide information HOUSE')) %>% 
+  select(YEAR, SEGMENT, ACTIVITY_EN, FTE_PCT) %>% 
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Claim report HOUSE', 'Claim report CAR',
+                                        'Provide information CAR', 'Provide information HOUSE')) %>%
+  mutate(ACTIVITY_EN = forcats::fct_reorder(ACTIVITY_EN, FTE_PCT, sum)) %>% 
+  mutate(ACTIVITY_EN = forcats::fct_relevel(ACTIVITY_EN, "Other")) %>%
+  # Plot
+  ggplot(aes(x = ACTIVITY_EN, y = FTE_PCT, fill = YEAR)) +
+    geom_bar(stat = "identity", position=position_dodge()) +
+    geom_text(aes(label = paste(round(FTE_PCT*100, 2), "%")), position = position_dodge(width = 1), size = 3) +
+    scale_y_continuous(labels = percent, breaks = c(0, 0.2, 0.4)) +
+    coord_flip() +
+    guides(fill = guide_legend(reverse = TRUE)) +
+    facet_grid(.~SEGMENT, labeller = label_wrap_gen(width=10)) +
+    labs(
+      x = "Call types",
+    y = "% of total FTE",
+    title = "Relative FTE Change 2018-2019"
     )
 ```
 
@@ -553,6 +661,7 @@ t_call_times %>%
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
          #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
          SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 9, other_level = "Everything else")) %>%
+  filter(SEGMENT != "Everything else") %>%
   group_by(YEAR, EVENT_MONTH,  SEGMENT) %>%
   summarize(
         CALL_VOLUME = n(),
@@ -581,8 +690,9 @@ t_call_times %>%
   ungroup() %>% 
   mutate(WRAPUP_RATIO = WRAPUP_FTE/FTE) %>% 
   select(YEAR, SEGMENT, WRAPUP_RATIO) %>% 
-  mutate(SEGMENT = forcats::fct_reorder(SEGMENT, WRAPUP_RATIO, sum)) %>% 
-  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, "Everything else")) %>% 
+  mutate(SEGMENT = forcats::fct_rev(SEGMENT)) %>% 
+  #mutate(SEGMENT = forcats::fct_reorder(SEGMENT, WRAPUP_RATIO, sum)) %>% 
+  #mutate(SEGMENT = forcats::fct_relevel(SEGMENT, "Everything else")) %>% 
   myspread(YEAR, WRAPUP_RATIO) %>% 
   mutate(WRAPUP = WRAPUP_RATIO_2019/WRAPUP_RATIO_2018 - 1) %>% 
   # Plot
@@ -593,7 +703,7 @@ t_call_times %>%
     geom_hline(yintercept = 0, colour = "#A9A9A9", linetype = "longdash") +
     coord_flip(ylim = c(-0.25, 0.25)) +
     labs(
-      x = "Request Type (in decreasing order of absolute wrap-up ratio)",
+      x = "Contact Reason",
     y = "Rate of Change (%)",
     title = "Change of Wrap-up FTE Ratio 2018-2019"
     )
