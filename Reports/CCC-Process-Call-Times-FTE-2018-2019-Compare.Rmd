@@ -17,6 +17,7 @@ library(lubridate)
 library(scales)
 library(tidyr)
 library(ggrepel)
+library(stringr)
 ```
 
 ```{r, message=FALSE, include=FALSE}
@@ -784,5 +785,49 @@ t_call_times %>%
       x = "Rate of Change (%)",
     y = "Ratio of Wrap-up FTE to Total FTE (in decreasing order of absolute num of calls per request)",
     title = "Change of Calls per Request 2018-2019"
+    )
+```
+
+
+### 3.3.3. Queries to Requests
+
+```{r, include = TRUE}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  filter(
+    (EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2018-06-01')) |
+    (EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01'))
+         ) %>%
+  mutate(YEAR = paste("Jan-May", lubridate::year(EVENT_END))) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 9, other_level = "Everything else"),
+         CONTACT_TYPE = case_when (stringr::str_detect(ACTIVITY_EN, "Provide information") ~ "Query",
+         TRUE ~ "Request"))%>%
+  group_by(YEAR, EVENT_MONTH, CONTACT_TYPE) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+         COST = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(YEAR, CONTACT_TYPE) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            COST = mean(COST)) %>%
+  ungroup() %>%
+  tidyr::gather(key = METRIC, value = VALUE, -YEAR, -CONTACT_TYPE) %>%
+  filter(METRIC != "COST") %>% 
+  # Plot
+ ggplot(aes(x = CONTACT_TYPE, y = VALUE, fill = YEAR)) +
+    geom_bar(stat = "identity", position=position_dodge()) +
+    facet_grid(METRIC~., scales = "free") +
+    labs(
+      x = "Contact type",
+    y = "",
+    title = "Query v Request 2018-2019"
     )
 ```
