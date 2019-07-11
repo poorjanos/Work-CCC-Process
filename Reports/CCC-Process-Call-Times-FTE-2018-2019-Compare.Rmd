@@ -18,6 +18,7 @@ library(scales)
 library(tidyr)
 library(ggrepel)
 library(stringr)
+library(RColorBrewer)
 ```
 
 ```{r, message=FALSE, include=FALSE}
@@ -103,17 +104,18 @@ t_call_times %>%
   #filter(PRODUCT_LINE != "UNKNOWN") %>% 
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month")) %>%
   group_by(EVENT_MONTH) %>%
-  summarize(CALL_VOLUME = n(),
+  summarize(VOLUME = n(),
             CALL_TIME_SEC = sum(CALL_TIME)) %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
   mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
-         COST = FTE/CALL_VOLUME*1000) %>%
-  select(EVENT_MONTH, CALL_VOLUME, FTE, COST) %>% 
+         COST = FTE/VOLUME*1000) %>%
+  select(EVENT_MONTH, VOLUME, FTE, COST) %>% 
   tidyr::gather(key = METRIC, value = VALUE, -EVENT_MONTH) %>%
-  mutate(METRIC = factor(METRIC, levels = c("CALL_VOLUME", "FTE", "COST")),
+  mutate(METRIC = factor(METRIC, levels = c("VOLUME", "FTE", "COST")),
          YEAR = factor(lubridate::year(EVENT_MONTH)),
          MONTH = lubridate::month(EVENT_MONTH)) %>% 
+  filter(METRIC != "COST") %>% 
   # Plot
   ggplot(aes(x = MONTH, y = VALUE, group = YEAR, colour = YEAR)) +
   geom_line() +
@@ -123,7 +125,7 @@ t_call_times %>%
   labs(
     x = "Month",
     y = "Value",
-    title = "Call Volumes and FTE"
+    title = "Volume and FTE"
   )
 ```
 
@@ -322,7 +324,7 @@ t_call_times %>%
   mutate(YEAR = forcats::fct_rev(factor(as.character(lubridate::year(EVENT_END))))) %>%
   mutate(
     EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
-    SEGMENT = forcats::fct_rev(forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 9, other_level = "Everything else"))
+    SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 9, other_level = "Everything else")
   ) %>%
   filter(SEGMENT != "Everything else") %>%
   group_by(YEAR, EVENT_MONTH, SEGMENT) %>%
@@ -337,13 +339,15 @@ t_call_times %>%
   summarize(FTE = mean(FTE)) %>% 
   ungroup() %>% 
   group_by(YEAR) %>% 
-  mutate(FTE_PCT = FTE/sum(FTE)) %>% 
+  mutate(FTE_PCT = FTE/sum(FTE),
+         SEGMENT = forcats::fct_reorder(SEGMENT, FTE, max)) %>% 
   ungroup() %>% 
   ggplot(aes(x = SEGMENT, FTE_PCT, fill = YEAR)) +
     geom_bar(stat = "identity", position = position_dodge()) +
-    geom_text(aes(label = paste(round(FTE_PCT*100, 2), "%")), position = position_dodge(width = 1), size = 3) +
+    geom_text(aes(label = paste(round(FTE_PCT*100, 1), "%")), position = position_dodge(width = 1), size = 3) +
     scale_y_continuous(labels = percent) +
     coord_flip() +
+    scale_fill_brewer(palette = "Paired") +
     guides(fill = guide_legend(reverse = TRUE)) +
     labs(
       x = "Contact Reason",
@@ -519,10 +523,11 @@ t_call_times %>%
   # Plot
   ggplot(aes(x = ACTIVITY_EN, y = FTE_PCT, fill = YEAR)) +
     geom_bar(stat = "identity", position=position_dodge()) +
-    geom_text(aes(label = paste(round(FTE_PCT*100, 2), "%")), position = position_dodge(width = 1), size = 3) +
+    geom_text(aes(label = paste(round(FTE_PCT*100, 1), "%")), position = position_dodge(width = 1), size = 3) +
     scale_y_continuous(labels = percent, breaks = c(0, 0.2, 0.4)) +
     coord_flip() +
     guides(fill = guide_legend(reverse = TRUE)) +
+    scale_fill_brewer(palette = "Paired") +
     facet_grid(.~SEGMENT, labeller = label_wrap_gen(width=10)) +
     labs(
       x = "Call types",
@@ -602,7 +607,7 @@ t_call_times %>%
     (EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2018-06-01')) |
     (EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01'))
          ) %>%
-  mutate(YEAR = lubridate::year(EVENT_END)) %>% 
+  mutate(YEAR = forcats::fct_rev(factor(as.character(lubridate::year(EVENT_END))))) %>%
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
          #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
          SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 9, other_level = "Everything else")) %>%
@@ -635,12 +640,15 @@ t_call_times %>%
   mutate(WRAPUP_RATIO = WRAPUP_FTE/FTE) %>% 
   mutate(SEGMENT = forcats::fct_reorder(SEGMENT, WRAPUP_RATIO, sum)) %>% 
   mutate(SEGMENT = forcats::fct_relevel(SEGMENT, "Everything else")) %>% 
+  filter(SEGMENT != "Everything else") %>% 
   # Plot
-  ggplot(aes(x = SEGMENT, y = WRAPUP_RATIO)) +
-    geom_bar(stat = "identity") +
+  ggplot(aes(x = SEGMENT, y = WRAPUP_RATIO, fill = YEAR)) +
+    geom_bar(stat = "identity", position=position_dodge()) +
+    geom_text(aes(label = paste(round(WRAPUP_RATIO*100, 1), "%")), position = position_dodge(width = 1), size = 3) +
     scale_y_continuous(label = percent) +
+    guides(fill = guide_legend(reverse = TRUE)) +
     coord_flip() +
-    facet_grid(YEAR~.) +
+    scale_fill_brewer(palette = "Paired") +
     labs(
       x = "Request Type",
     y = "Ratio of Wrap-up FTE to Total FTE",
@@ -703,6 +711,7 @@ t_call_times %>%
     scale_y_continuous(labels = percent) +
     geom_hline(yintercept = 0, colour = "#A9A9A9", linetype = "longdash") +
     coord_flip(ylim = c(-0.25, 0.25)) +
+    scale_fill_brewer(palette = "Paired") +
     labs(
       x = "Contact Reason",
     y = "Rate of Change (%)",
