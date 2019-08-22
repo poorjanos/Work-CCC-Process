@@ -56,7 +56,7 @@ jdbcConnection <-
   )
 
 # Fetch data
-t_call_times <- dbGetQuery(jdbcConnection, 'select * from t_call_times UNION select * from t_call_times_2019')
+t_call_times <- dbGetQuery(jdbcConnection, 'select * from t_call_times_2018_cor UNION select * from t_call_times_2019_cor')
 t_mnap <- dbGetQuery(jdbcConnection, 'select * from t_mnap')
 
 # Close db connection: kontakt
@@ -108,7 +108,7 @@ t_call_times %>%
             CALL_TIME_SEC = sum(CALL_TIME)) %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
-  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+  mutate(FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
          COST = FTE/VOLUME*1000) %>%
   select(EVENT_MONTH, VOLUME, FTE, COST) %>% 
   tidyr::gather(key = METRIC, value = VALUE, -EVENT_MONTH) %>%
@@ -120,7 +120,7 @@ t_call_times %>%
   ggplot(aes(x = MONTH, y = VALUE, group = YEAR, colour = YEAR)) +
   geom_line() +
   scale_x_continuous(breaks = seq(12)) +
-  theme(axis.text.x = element_text(angle = 90)) +
+  theme(axis.text.x = element_text(angle = 0)) +
   facet_grid(METRIC~., scales = "free") +
   labs(
     x = "Month",
@@ -150,7 +150,7 @@ t_call_times %>%
             CALL_TIME_SEC = sum(CALL_TIME_SEC),
             MNAP = sum(MNAP)) %>% 
   ungroup() %>% 
-  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+  mutate(FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
          COST = FTE/CALL_VOLUME*1000) %>%
   select(EVENT_MONTH, SEGMENT, CALL_VOLUME, FTE, COST) %>% 
   tidyr::gather(key = METRIC, value = VALUE, -EVENT_MONTH, -SEGMENT) %>% 
@@ -207,7 +207,7 @@ t_call_times %>%
             CALL_TIME_SEC = sum(CALL_TIME)) %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
-  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+  mutate(FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
          COST = FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
   group_by(YEAR, SEGMENT) %>% 
@@ -227,7 +227,7 @@ t_call_times %>%
                   force = 50,
                   size = 3.5) +
     facet_grid(.~YEAR) +
-    coord_cartesian(ylim = c(0.7, 1.025)) +
+    coord_cartesian(ylim = c(0.7, 1)) +
     labs(
       x = "Calls (Monthly Average)",
     y = "Cost per Call (Normalized FTE)",
@@ -273,7 +273,7 @@ t_call_times %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>%
   mutate(
-    FTE = CALL_TIME_SEC / 60 / 60 / 7 / MNAP,
+    FTE = CALL_TIME_SEC / 60 / 60 / 6.5 / MNAP,
     COST = FTE / CALL_VOLUME * 1000
   ) %>%
   # Compute monthly averages
@@ -334,7 +334,7 @@ t_call_times %>%
   ) %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>%
-  mutate(FTE = CALL_TIME_SEC/ 60/ 60/ 7/ MNAP) %>% 
+  mutate(FTE = CALL_TIME_SEC/ 60/ 60/ 6.5/ MNAP) %>% 
   group_by(YEAR, SEGMENT) %>% 
   summarize(FTE = mean(FTE)) %>% 
   ungroup() %>% 
@@ -389,7 +389,7 @@ t_call_times %>%
             CALL_TIME_SEC = sum(CALL_TIME)) %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
-  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+  mutate(FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
          COST = FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
   group_by(YEAR, SEGMENT, ACTIVITY_EN) %>% 
@@ -442,7 +442,7 @@ t_call_times %>%
             CALL_TIME_SEC = sum(CALL_TIME)) %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
-  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+  mutate(FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
          COST = FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
   group_by(YEAR, SEGMENT, ACTIVITY_EN) %>% 
@@ -502,7 +502,7 @@ t_call_times %>%
             CALL_TIME_SEC = sum(CALL_TIME)) %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
-  mutate(FTE = CALL_TIME_SEC/60/60/7/MNAP,
+  mutate(FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
          COST = FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
   group_by(YEAR, SEGMENT, ACTIVITY_EN) %>% 
@@ -566,11 +566,11 @@ t_call_times %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
   mutate(
-    FTE = CALL_TIME_SEC/60/60/7/MNAP,
+    FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
     COST = FTE/CALL_VOLUME*1000,
-    SPEAK_FTE = SPEAK_TIME_SEC/60/60/7/MNAP,
+    SPEAK_FTE = SPEAK_TIME_SEC/60/60/6.5/MNAP,
     SPEAK_COST = SPEAK_FTE/CALL_VOLUME*1000,
-    WRAPUP_FTE = WRAPUP_TIME_SEC/60/60/7/MNAP,
+    WRAPUP_FTE = WRAPUP_TIME_SEC/60/60/6.5/MNAP,
     WRAPUP_COST = WRAPUP_FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
   group_by(YEAR) %>% 
@@ -587,7 +587,7 @@ t_call_times %>%
   # Plot
   ggplot(aes(x = as.character(YEAR), y = WRAPUP_RATIO)) +
     geom_bar(stat = "identity") +
-    geom_text(aes(label = paste(round(WRAPUP_RATIO*100), "%")), vjust = -0.1) +
+    geom_text(aes(label = paste(round(WRAPUP_RATIO*100, 1), "%")), vjust = -0.1) +
     scale_y_continuous(label = percent) +
     #facet_grid(YEAR~.) +
     labs(
@@ -597,7 +597,7 @@ t_call_times %>%
     )
 ```
 
-### 3.2.1. Wrap-Up FTE Ratio by Request Type
+### 3.2.1. Wrap-Up FTE Ratio by Contact Type
 
 ```{r}
 t_call_times %>%
@@ -620,11 +620,11 @@ t_call_times %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
   mutate(
-    FTE = CALL_TIME_SEC/60/60/7/MNAP,
+    FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
     COST = FTE/CALL_VOLUME*1000,
-    SPEAK_FTE = SPEAK_TIME_SEC/60/60/7/MNAP,
+    SPEAK_FTE = SPEAK_TIME_SEC/60/60/6.5/MNAP,
     SPEAK_COST = SPEAK_FTE/CALL_VOLUME*1000,
-    WRAPUP_FTE = WRAPUP_TIME_SEC/60/60/7/MNAP,
+    WRAPUP_FTE = WRAPUP_TIME_SEC/60/60/6.5/MNAP,
     WRAPUP_COST = WRAPUP_FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
   group_by(YEAR, SEGMENT) %>% 
@@ -650,7 +650,7 @@ t_call_times %>%
     coord_flip() +
     scale_fill_brewer(palette = "Paired") +
     labs(
-      x = "Request Type",
+      x = "Contact Type",
     y = "Ratio of Wrap-up FTE to Total FTE",
     title = "Proprotion of FTE Spent on Wrap-up"
     )
@@ -658,7 +658,7 @@ t_call_times %>%
 
 ### 3.2.2. Wrap-Up FTE Ratio Change 2018-2019
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 t_call_times %>%
   # Transform data
   filter(PRODUCT_LINE != "UNKNOWN") %>% 
@@ -680,11 +680,11 @@ t_call_times %>%
   ungroup() %>%
   left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
   mutate(
-    FTE = CALL_TIME_SEC/60/60/7/MNAP,
+    FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
     COST = FTE/CALL_VOLUME*1000,
-    SPEAK_FTE = SPEAK_TIME_SEC/60/60/7/MNAP,
+    SPEAK_FTE = SPEAK_TIME_SEC/60/60/6.5/MNAP,
     SPEAK_COST = SPEAK_FTE/CALL_VOLUME*1000,
-    WRAPUP_FTE = WRAPUP_TIME_SEC/60/60/7/MNAP,
+    WRAPUP_FTE = WRAPUP_TIME_SEC/60/60/6.5/MNAP,
     WRAPUP_COST = WRAPUP_FTE/CALL_VOLUME*1000) %>%
   # Compute monthly averages
   group_by(YEAR, SEGMENT) %>% 
@@ -708,21 +708,22 @@ t_call_times %>%
   ggplot(aes(x = SEGMENT, y = WRAPUP)) +
     geom_bar(aes(fill = WRAPUP < 0), stat = "identity") +
     scale_fill_manual(guide = FALSE, breaks = c(TRUE, FALSE), values = c("#FF6347", "#90EE90")) +
+    scale_fill_brewer(palette = "Paired") +
     scale_y_continuous(labels = percent) +
     geom_hline(yintercept = 0, colour = "#A9A9A9", linetype = "longdash") +
     coord_flip(ylim = c(-0.25, 0.25)) +
-    scale_fill_brewer(palette = "Paired") +
+    theme(legend.position = "none") +
     labs(
-      x = "Contact Reason",
+      x = "Contact Type",
     y = "Rate of Change (%)",
     title = "Change of Wrap-up FTE Ratio 2018-2019"
     )
 ```
 
 
-## 3.3. Calls per Request
+## 3.3. Calls per Contact
 
-### 3.3.1 Calls per Request by Request Type
+### 3.3.1 Calls per Contact by Contact Type
 
 ```{r}
 t_call_times %>%
@@ -753,12 +754,12 @@ t_call_times %>%
     labs(
       x = "Request Type",
     y = "Calls per Request",
-    title = "Average Number of Calls on a Single Request"
+    title = "Average Number of Calls on a Single Contact"
     )
 ```
 
 
-### 3.3.2. Calls per Request Change 2018-2019
+### 3.3.2. Calls per Contact Change 2018-2019
 
 ```{r}
 t_call_times %>%
@@ -793,7 +794,7 @@ t_call_times %>%
     labs(
       x = "Rate of Change (%)",
     y = "Ratio of Wrap-up FTE to Total FTE (in decreasing order of absolute num of calls per request)",
-    title = "Change of Calls per Request 2018-2019"
+    title = "Change of Calls per Contact 2018-2019"
     )
 ```
 
