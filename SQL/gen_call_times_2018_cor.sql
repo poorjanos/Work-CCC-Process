@@ -90,7 +90,7 @@ AS
        FROM   MESTERR.EXPORT_PA_WFLOG5
       WHERE   call_time > 0                             --and hun1 is not null
                            AND wflog_user LIKE 'CCC/%'
-                           AND AND f_idopont between date '2018-01-01' and date '2018-06-01'
+                           AND f_idopont between date '2017-01-01' and date '2018-12-31'
    ORDER BY   1, 2;
 COMMIT;
 
