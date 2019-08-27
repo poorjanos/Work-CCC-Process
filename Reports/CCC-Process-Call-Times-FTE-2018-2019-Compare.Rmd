@@ -84,6 +84,8 @@ t_call_times[t_call_times$CASE_TYPE_EN == "Claim report" &
 t_call_times[t_call_times$ACTIVITY_EN %in%
                c("Request claim recording", "Claim report (request inspection)"), "ACTIVITY_EN"] <- "Report claim"
 
+t_call_times[t_call_times$CASE_TYPE_EN == "Claim report", "CASE_TYPE_EN"] <- "Claims"
+
 t_mnap <- t_mnap %>% mutate(IDOSZAK = ymd_hms(IDOSZAK))
 ```
 
@@ -289,53 +291,72 @@ t_call_times %>%
 ```{r, include = TRUE, fig.height=6.5, fig.width=8}
 t_call_times %>%
   # Transform data
-  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
   filter(
-    #(EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2018-06-01')) |
-    EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01')
-         ) %>%
-  mutate(YEAR = paste("Jan-May", lubridate::year(EVENT_END))) %>% 
-  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
-         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
-         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 9, other_level = "Everything else")) %>%
-  group_by(YEAR, EVENT_MONTH,  SEGMENT) %>%
-  summarize(CALL_VOLUME = n(),
-            CALL_TIME_MEAN = mean(CALL_TIME),
-            CALL_TIME_SEC = sum(CALL_TIME)) %>%
-  ungroup() %>%
-  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
-  mutate(FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
-         COST = FTE/CALL_VOLUME*1000) %>%
-  # Compute monthly averages
-  group_by(YEAR, SEGMENT) %>% 
+    # (EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2018-06-01')) |
+    EVENT_END >= as.Date("2019-01-01") & EVENT_END < as.Date("2019-06-01")
+  ) %>%
+  mutate(YEAR = paste("Jan-May", lubridate::year(EVENT_END))) %>%
+  mutate(
+    EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+    # CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+    SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 9, other_level = "Everything else")
+  ) %>%
+  group_by(YEAR, EVENT_MONTH, SEGMENT) %>%
   summarize(
-            CALL_VOLUME = mean(CALL_VOLUME),
-            FTE = mean(FTE),
-            CALL_TIME_MEAN = mean(CALL_TIME_MEAN),
-            COST = mean(COST)) %>%
-  filter(SEGMENT != "Everything else") %>% 
-  arrange(YEAR, desc(FTE)) %>% 
+    CALL_VOLUME = n(),
+    CALL_TIME_MEAN = mean(CALL_TIME),
+    CALL_TIME_SEC = sum(CALL_TIME)
+  ) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>%
+  mutate(
+    FTE = CALL_TIME_SEC / 60 / 60 / 6.5 / MNAP,
+    COST = FTE / CALL_VOLUME * 1000
+  ) %>%
+  # Compute monthly averages
+  group_by(YEAR, SEGMENT) %>%
+  summarize(
+    CALL_VOLUME = mean(CALL_VOLUME),
+    FTE = mean(FTE),
+    CALL_TIME_MEAN = mean(CALL_TIME_MEAN),
+    COST = mean(COST)
+  ) %>%
+  filter(SEGMENT != "Everything else") %>%
+  arrange(YEAR, desc(FTE)) %>%
   # Plot
   ggplot(aes(x = CALL_VOLUME, y = CALL_TIME_MEAN, label = SEGMENT)) +
-    geom_point(aes(size = FTE), colour = "slateblue4") +
-    geom_label_repel(aes(label = SEGMENT),
-                      box.padding   =  unit(0.35, "lines"), 
-                      point.padding =  unit(0.5, "lines"),
-                      segment.color = 'slateblue4',
-                      force = 70,
-                      fontface = 'bold',
-                      color = 'white',
-                      fill = 'slateblue4',
-                      size = 4) +
-    #facet_grid(.~YEAR) +
-    #coord_cartesian(xlim = c(2000, 10000)) +
-    labs(
-      x = "Calls per Month",
+  geom_point(aes(size = FTE), colour = "#0077C8") +
+  geom_label_repel(aes(label = SEGMENT),
+    box.padding = unit(0.35, "lines"),
+    point.padding = unit(0.5, "lines"),
+    segment.color = "#0077C8",
+    force = 90,
+    fontface = "bold",
+    color = "white",
+    fill = "#0077C8",
+    size = 4
+  ) +
+  # facet_grid(.~YEAR) +
+  # coord_cartesian(xlim = c(2000, 10000)) +
+  labs(
+    x = "Calls per Month",
     y = "Call Time (Sec)",
     title = "Impact Map of Processes",
-    subtitle = "Which Processes Consume Most Resources",
+    subtitle = "Inbound Calls with Highest FTE Need",
     caption = "Measurement period: Jan-May, 2019"
-    )
+  ) +
+  theme(
+    plot.title = element_text(color = "#0077C8", face = "bold"),
+    plot.subtitle = element_text(color = "#0077C8"),
+    plot.caption = element_text(color = "#0077C8"),
+    axis.title.x = element_text(color = "#0077C8"),
+    axis.title.y = element_text(color = "#0077C8"),
+    axis.text.x = element_text(color = "#0077C8"),
+    axis.text.y = element_text(color = "#0077C8"),
+    legend.title = element_text(color = "#0077C8"),
+    legend.text = element_text(color = "#0077C8")
+  )
 ```
 
 
@@ -501,9 +522,9 @@ t_call_times %>%
             FTE = mean(FTE),
             COST = mean(COST)) %>%
   ungroup() %>% 
-  filter(SEGMENT %in% c('Claim report HOUSE', 'Claim report CAR', 'Provide information CAR', 'Provide information HOUSE')) %>% 
+  filter(SEGMENT %in% c('Claims HOUSE', 'Claims CAR', 'Provide information CAR', 'Provide information HOUSE')) %>% 
   select(YEAR, SEGMENT, ACTIVITY_EN, FTE) %>% 
-  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Claim report HOUSE', 'Claim report CAR',
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Claims HOUSE', 'Claims CAR',
                                         'Provide information CAR', 'Provide information HOUSE')) %>%
   mutate(ACTIVITY_EN = forcats::fct_reorder(ACTIVITY_EN, FTE, sum)) %>% 
   mutate(ACTIVITY_EN = forcats::fct_relevel(ACTIVITY_EN, "Other")) %>%
@@ -554,9 +575,9 @@ t_call_times %>%
             FTE = mean(FTE),
             COST = mean(COST)) %>%
   ungroup() %>% 
-  filter(SEGMENT %in% c('Claim report HOUSE', 'Claim report CAR', 'Provide information CAR', 'Provide information HOUSE')) %>% 
+  filter(SEGMENT %in% c('Claims HOUSE', 'Claims CAR', 'Provide information CAR', 'Provide information HOUSE')) %>% 
   select(YEAR, SEGMENT, ACTIVITY_EN, FTE) %>% 
-  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Claim report HOUSE', 'Claim report CAR',
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Claims HOUSE', 'Claims CAR',
                                         'Provide information CAR', 'Provide information HOUSE')) %>%
   mutate(ACTIVITY_EN = forcats::fct_reorder(ACTIVITY_EN, FTE, sum)) %>% 
   mutate(ACTIVITY_EN = forcats::fct_relevel(ACTIVITY_EN, "Other")) %>%
@@ -617,9 +638,9 @@ t_call_times %>%
   group_by(YEAR, SEGMENT) %>% 
   mutate(FTE_PCT = FTE/sum(FTE)) %>% 
   ungroup() %>% 
-  filter(SEGMENT %in% c('Claim report HOUSE', 'Claim report CAR', 'Provide information CAR', 'Provide information HOUSE')) %>% 
+  filter(SEGMENT %in% c('Claims HOUSE', 'Claims CAR', 'Provide information CAR', 'Provide information HOUSE')) %>% 
   select(YEAR, SEGMENT, ACTIVITY_EN, FTE_PCT) %>% 
-  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Claim report HOUSE', 'Claim report CAR',
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Claims HOUSE', 'Claims CAR',
                                         'Provide information CAR', 'Provide information HOUSE')) %>%
   mutate(ACTIVITY_EN = forcats::fct_reorder(ACTIVITY_EN, FTE_PCT, sum)) %>% 
   mutate(ACTIVITY_EN = forcats::fct_relevel(ACTIVITY_EN, "Other")) %>%
@@ -702,7 +723,7 @@ t_call_times %>%
 
 ### 3.2.1. Wrap-Up FTE Ratio by Contact Type
 
-```{r}
+```{r, include=FALSE}
 t_call_times %>%
   # Transform data
   filter(PRODUCT_LINE != "UNKNOWN") %>% 
@@ -747,16 +768,102 @@ t_call_times %>%
   # Plot
   ggplot(aes(x = SEGMENT, y = WRAPUP_RATIO, fill = YEAR)) +
     geom_bar(stat = "identity", position=position_dodge()) +
-    geom_text(aes(label = paste(round(WRAPUP_RATIO*100, 1), "%")), position = position_dodge(width = 1), size = 3) +
+    geom_text(aes(label = paste(round(WRAPUP_RATIO*100, 1), "%")), position = position_dodge(width = 1), size = 3, colour = "#0077C8", hjust = -0.1) +
     scale_y_continuous(label = percent) +
     guides(fill = guide_legend(reverse = TRUE)) +
-    coord_flip() +
+    coord_flip(ylim = c(0, 0.32)) +
     scale_fill_brewer(palette = "Paired") +
-    labs(
-      x = "Contact Type",
+  labs(
+    x = "Contact Type",
     y = "Ratio of Wrap-up FTE to Total FTE",
-    title = "Proprotion of FTE Spent on Wrap-up"
-    )
+    title = "Resources Spent on Call Administration",
+    subtitle = "Proprotion of FTE Spent on Wrap-up",
+    caption = "Measurement period: Jan-May, 2019"
+  ) +
+  theme(
+    plot.title = element_text(color = "#0077C8", face = "bold"),
+    plot.subtitle = element_text(color = "#0077C8"),
+    plot.caption = element_text(color = "#0077C8"),
+    axis.title.x = element_text(color = "#0077C8"),
+    axis.title.y = element_text(color = "#0077C8"),
+    axis.text.x = element_text(color = "#0077C8"),
+    axis.text.y = element_text(color = "#0077C8"),
+    legend.title = element_text(color = "#0077C8"),
+    legend.text = element_text(color = "#0077C8")
+  )
+```
+
+
+```{r, fig.height=6.5, fig.width=8}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
+  filter(EVENT_END >= as.Date("2019-01-01") & EVENT_END < as.Date("2019-06-01")) %>%
+  mutate(YEAR = forcats::fct_rev(factor(as.character(lubridate::year(EVENT_END))))) %>%
+  mutate(
+    EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+    # CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+    SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 9, other_level = "Everything else")
+  ) %>%
+  group_by(YEAR, EVENT_MONTH, SEGMENT) %>%
+  summarize(
+    CALL_VOLUME = n(),
+    CALL_TIME_SEC = sum(CALL_TIME),
+    SPEAK_TIME_SEC = sum(SPEAK_TIME),
+    WRAPUP_TIME_SEC = sum(WRAPUP_TIME)
+  ) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>%
+  mutate(
+    FTE = CALL_TIME_SEC / 60 / 60 / 6.5 / MNAP,
+    COST = FTE / CALL_VOLUME * 1000,
+    SPEAK_FTE = SPEAK_TIME_SEC / 60 / 60 / 6.5 / MNAP,
+    SPEAK_COST = SPEAK_FTE / CALL_VOLUME * 1000,
+    WRAPUP_FTE = WRAPUP_TIME_SEC / 60 / 60 / 6.5 / MNAP,
+    WRAPUP_COST = WRAPUP_FTE / CALL_VOLUME * 1000
+  ) %>%
+  # Compute monthly averages
+  group_by(YEAR, SEGMENT) %>%
+  summarize(
+    CALL_VOLUME = mean(CALL_VOLUME),
+    FTE = mean(FTE),
+    COST = mean(COST),
+    SPEAK_FTE = mean(SPEAK_FTE),
+    SPEAK_COST = mean(SPEAK_COST),
+    WRAPUP_FTE = mean(WRAPUP_FTE),
+    WRAPUP_COST = mean(WRAPUP_COST)
+  ) %>%
+  ungroup() %>%
+  mutate(WRAPUP_RATIO = WRAPUP_FTE / FTE) %>%
+  mutate(SEGMENT = forcats::fct_reorder(SEGMENT, WRAPUP_RATIO, sum)) %>%
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, "Everything else")) %>%
+  filter(SEGMENT != "Everything else") %>%
+  # Plot
+  ggplot(aes(x = SEGMENT, y = WRAPUP_RATIO)) +
+  geom_bar(stat = "identity", position = position_dodge(), colour = "#0077C8", fill = "#0077C8") +
+  geom_text(aes(label = paste(round(WRAPUP_RATIO * 100, 1), "%")), position = position_dodge(width = 1), size = 3, colour = "#0077C8", hjust = -0.1) +
+  scale_y_continuous(label = percent) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  coord_flip(ylim = c(0, 0.3)) +
+  # scale_fill_brewer(palette = "Paired") +
+  labs(
+    x = "Contact Type",
+    y = "Wrap-up/Total FTE",
+    title = "Resources Spent on Call Administration",
+    subtitle = "Proprotion of FTE Spent on Wrap-up",
+    caption = "Measurement period: Jan-May, 2019"
+  ) +
+  theme(
+    plot.title = element_text(color = "#0077C8", face = "bold"),
+    plot.subtitle = element_text(color = "#0077C8"),
+    plot.caption = element_text(color = "#0077C8"),
+    axis.title.x = element_text(color = "#0077C8"),
+    axis.title.y = element_text(color = "#0077C8"),
+    axis.text.x = element_text(color = "#0077C8"),
+    axis.text.y = element_text(color = "#0077C8"),
+    legend.title = element_text(color = "#0077C8"),
+    legend.text = element_text(color = "#0077C8")
+  )
 ```
 
 ### 3.2.2. Wrap-Up FTE Ratio Change 2018-2019
