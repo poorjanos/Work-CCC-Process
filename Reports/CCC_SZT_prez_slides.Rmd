@@ -476,3 +476,50 @@ t_call_times %>%
     legend.text = element_text(color = "#0077C8")
   )
 ```
+
+# 4. Concentration
+
+
+```{r, include = TRUE, fig.width=10}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>% 
+  filter(
+    EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01')
+         ) %>%
+  mutate(YEAR = paste("Jan-May", lubridate::year(EVENT_END))) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(CASE_TYPE_EN, n = 9, other_level = "Everything else")) %>%
+  group_by(YEAR, EVENT_MONTH,  SEGMENT) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
+         COST = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(YEAR, SEGMENT) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            COST = mean(COST)) %>%
+  #filter(SEGMENT != "Everything else") %>% 
+  arrange(YEAR, desc(FTE)) %>% 
+  # Plot
+  ggplot(aes(x = CALL_VOLUME, y = COST, label = SEGMENT)) +
+    geom_point(aes(size = FTE), colour = "blue") +
+    geom_label_repel(aes(label = SEGMENT),
+                  box.padding   = 0.35, 
+                  point.padding = 0.5,
+                  segment.color = 'grey50',
+                  force = 50,
+                  size = 3.5) +
+    facet_grid(.~YEAR) +
+    coord_cartesian(ylim = c(0.6, 1)) +
+    labs(
+      x = "Calls (Monthly Average)",
+    y = "Cost per Call (Normalized FTE)",
+    title = "Impact Map of Processes"
+    )
+```
