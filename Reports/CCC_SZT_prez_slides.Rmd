@@ -485,7 +485,7 @@ t_call_times %>%
   # Transform data
   filter(PRODUCT_LINE != "UNKNOWN") %>% 
   filter(
-    EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01')
+    EVENT_END >= as.Date('2018-01-01') & EVENT_END < as.Date('2018-06-01')
          ) %>%
   mutate(YEAR = paste("Jan-May", lubridate::year(EVENT_END))) %>% 
   mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
@@ -521,5 +521,60 @@ t_call_times %>%
       x = "Calls (Monthly Average)",
     y = "Cost per Call (Normalized FTE)",
     title = "Impact Map of Processes"
+    )
+```
+
+
+## 5. Call Types FTE
+
+The FTE of each process can be broken by call type. Call type is the service or solution provided for the customer in the call.
+
+Note the other category can broken down for further call types if neccessary.
+
+```{r, fig.width=10}
+t_call_times %>%
+  # Transform data
+  filter(PRODUCT_LINE != "UNKNOWN") %>%
+  filter(
+    EVENT_END >= as.Date('2019-01-01') & EVENT_END < as.Date('2019-06-01')
+         ) %>%
+  mutate(YEAR = lubridate::year(EVENT_END)) %>% 
+  mutate(EVENT_MONTH = floor_date(EVENT_END, unit = "month"),
+         #CASE_TYPE_EN = forcats::fct_lump(factor(CASE_TYPE_EN), n = 7),
+         SEGMENT = forcats::fct_lump(paste(CASE_TYPE_EN, PRODUCT_LINE), n = 15)) %>%
+  mutate(ACTIVITY_EN = case_when(ACTIVITY_EN == "Premium settlement" ~ "Provide information Premium settlement",
+                                 TRUE ~ ACTIVITY_EN)) %>% 
+  group_by(YEAR, EVENT_MONTH, SEGMENT) %>% 
+  mutate(ACTIVITY_EN = as.character(forcats::fct_lump(ACTIVITY_EN, prop = 0.025))) %>% 
+  ungroup() %>% 
+  group_by(YEAR, EVENT_MONTH, SEGMENT, ACTIVITY_EN) %>%
+  summarize(CALL_VOLUME = n(),
+            CALL_TIME_SEC = sum(CALL_TIME)) %>%
+  ungroup() %>%
+  left_join(t_mnap, by = c("EVENT_MONTH" = "IDOSZAK")) %>% 
+  mutate(FTE = CALL_TIME_SEC/60/60/6.5/MNAP,
+         COST = FTE/CALL_VOLUME*1000) %>%
+  # Compute monthly averages
+  group_by(YEAR, SEGMENT, ACTIVITY_EN) %>% 
+  summarize(
+            CALL_VOLUME = mean(CALL_VOLUME),
+            FTE = mean(FTE),
+            COST = mean(COST)) %>%
+  ungroup() %>% 
+  filter(SEGMENT %in% c('Premium HOUSE', 'Premium CAR')) %>% 
+  select(YEAR, SEGMENT, ACTIVITY_EN, FTE) %>% 
+  mutate(SEGMENT = forcats::fct_relevel(SEGMENT, 'Premium HOUSE', 'Premium CAR')) %>%
+  mutate(ACTIVITY_EN = forcats::fct_reorder(ACTIVITY_EN, FTE, sum)) %>% 
+  mutate(ACTIVITY_EN = forcats::fct_relevel(ACTIVITY_EN, "Other")) %>%
+  # Plot
+  ggplot(aes(x = ACTIVITY_EN, y = FTE)) +
+    geom_bar(stat = "identity") +
+    theme(strip.text.y = element_text(angle=0)) +
+    coord_flip() +
+    facet_grid(YEAR~SEGMENT, labeller = label_wrap_gen(width=10)) +
+    labs(
+      x = "Call types",
+    y = "FTE",
+    title = "Call Types: FTE Comparison 2018-2019"
     )
 ```
